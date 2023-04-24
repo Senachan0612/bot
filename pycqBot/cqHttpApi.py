@@ -5,6 +5,7 @@ import platform
 import subprocess
 from typing import Union, Optional, Any, Callable
 import os
+import sys
 from logging import handlers
 import logging
 from threading import Thread
@@ -19,6 +20,9 @@ from pycqBot.cqApi import Api
 from pycqBot.data import *
 from pycqBot.data.event import _get_event
 import yaml
+
+# 插件路径
+PLUGIN_PATH = 'plugin'
 
 
 class cqHttpApi(Api):
@@ -37,7 +41,7 @@ class cqHttpApi(Api):
         return cqBot(
             self, host, group_id_list, user_id_list, options
         )
-    
+
     def _create_sql_link(self, db_path: str, sleep: int) -> None:
         """
         长效消息存储 初始化
@@ -61,11 +65,11 @@ class cqHttpApi(Api):
             """)
 
             sql_link.commit()
-        
+
         thread = Thread(target=self._record_message_ck, args=(sleep,),name="_record_message_ck")
         thread.setDaemon(True)
         thread.start()
-    
+
     def _record_message_ck(self, sleep: int) -> None:
         """
         长效消息存储 检查失效消息
@@ -101,7 +105,7 @@ class cqHttpApi(Api):
                 sql_link.commit()
         except Exception as err:
             self.recordMessageError(message, time_int, time_end, err)
-    
+
     def record_message_get(self, user_id: int) -> Optional[list[dict[str, Any]]]:
         """
         长效消息存储 获取
@@ -116,7 +120,7 @@ class cqHttpApi(Api):
 
         except Exception as err:
             self.recordMessageGetError(user_id, err)
-        
+
         return None
 
     def reply(self, user_id, sleep) -> Optional[Message]:
@@ -130,49 +134,49 @@ class cqHttpApi(Api):
             in_time = time.time()
             if self.__reply_list_msg[user_id] is None:
                 continue
-            
+
             break
-        
+
         reply_msg = self.__reply_list_msg[user_id]
         self.__reply_list_msg.pop(user_id)
 
         return reply_msg
-    
+
     def _reply_ck(self, user_id: int) -> bool:
         """
         等待回复 检查
         """
         if user_id in self.__reply_list_msg:
             return True
-        
+
         return False
-    
+
     def _reply_add(self, user_id: int, msg: Message) -> None:
         """
         等待回复 添加回复数据
         """
         self.__reply_list_msg[user_id] = msg
-    
+
     def recordMessageInvalid(self, record_message_data, sql_link):
         """
         长效消息存储 消息失效
         """
         logging.debug("长效消息存储 消息失效 %s" % str(record_message_data))
-    
+
     def recordMessageError(self, message_data, time_int, time_end, err):
         """
         长效消息存储 消息存储失败
         """
         logging.error("长效消息存储 消息存储失败 %s Error: %s" % (message_data, err))
         logging.exception(err)
-    
+
     def recordMessageGetError(self, user_id, err):
         """
         长效消息存储 消息查询失败
         """
         logging.error("长效消息存储 消息查询失败 user_id: %s Error: %s" % (user_id, err))
         logging.exception(err)
-    
+
     def recordMessageCKError(self, err):
         """
         长效消息存储 检查消息失败
@@ -249,7 +253,7 @@ class cqBot(cqEvent.Event):
         内置指令 status
             查看 go-cqhttp 状态
         """
-        
+
         def status(_, message: Message):
             if self._go_cqhttp_status == {}:
                 self.cqapi.send_reply(message, "go-cqhttp 心跳未被正常配置，请检查")
@@ -270,7 +274,7 @@ class cqBot(cqEvent.Event):
             )
 
             message.reply(status_msg)
-        
+
         self.command(status, "status", {
             "type": "all",
             "admin": True,
@@ -293,11 +297,11 @@ class cqBot(cqEvent.Event):
         if "WARNING" in shell_msg:
             logging.warning("go-cqhttp 警告 %s" % shell_msg_data)
             return
-        
+
         if "DEBUG" in shell_msg:
             logging.debug(shell_msg_data)
             return
-        
+
         if "ERROR" in shell_msg:
             logging.error("go-cqhttp 发生错误 %s" % shell_msg_data)
             return
@@ -305,7 +309,7 @@ class cqBot(cqEvent.Event):
         if "FATAL" in shell_msg:
             logging.error("go-cqhttp 发生致命错误 %s" % shell_msg_data)
             return
-        
+
         print(shell_msg[-1])
 
     def _set_config(self, go_cqhttp_path) -> None:
@@ -313,6 +317,10 @@ class cqBot(cqEvent.Event):
         if not os.path.isfile(config_path):
             with open(config_path, "w", encoding="utf8") as file:
                 file.write(pycqBot.GO_CQHTTP_CONFIG)
+                file.close()
+
+            logging.error('未配置config.yml，程序结束运行！')
+            sys.exit()
 
     def start(self, go_cqhttp_path: str="./", print_error: bool=True, start_go_cqhttp: bool=True)  -> None:
         """
@@ -338,12 +346,12 @@ class cqBot(cqEvent.Event):
 
                 if "CQ WebSocket 服务器已启动" in shell_msg:
                     self._websocket_start_in = False
-                
+
                 if print_error and "INFO" not in shell_msg:
                     self.cqhttp_log_print(shell_msg)
                 elif not print_error:
                     self.cqhttp_log_print(shell_msg)
-        
+
         self._start_in = True
         try:
             if not start_go_cqhttp:
@@ -361,7 +369,7 @@ class cqBot(cqEvent.Event):
             self._websocket_start()
         except KeyboardInterrupt:
             print("\n")
-    
+
     def _websocket_start(self) -> None:
         """
         连接 websocket 会话
@@ -390,13 +398,13 @@ class cqBot(cqEvent.Event):
                 if not self._start_in:
                     logging.info("关闭 bot")
                     return
-                
+
                 self.reconnection -= 1
                 logging.warning(f"{self.reconnection_sleep}秒后 重新连接 websocket 服务 ({old_reconnection - self.reconnection}/{old_reconnection})")
                 time.sleep(self.reconnection_sleep)
-            
+
             logging.fatal(f"无法连接 websocket 服务 host: {self.__host}")
-        
+
         try:
             asyncio.run(main_logic())
         except KeyboardInterrupt:
@@ -410,29 +418,27 @@ class cqBot(cqEvent.Event):
 
     @staticmethod
     def _import_plugin_config() -> dict:
-        if os.path.isfile("./plugin_config.yml"):
-            with open("./plugin_config.yml", "r", encoding="utf8") as file:
+        if os.path.isfile(f"{PLUGIN_PATH}/plugin_config.yml"):
+            with open(f"{PLUGIN_PATH}/plugin_config.yml", "r", encoding="utf8") as file:
                 plugin_config = yaml.safe_load(file.read())
                 return {} if plugin_config is None else plugin_config
         else:
-            with open("./plugin_config.yml", "w", encoding="utf8") as file:
+            with open(f"{PLUGIN_PATH}/plugin_config.yml", "w", encoding="utf8") as file:
                 file.write("# 插件配置")
 
         return {}
-    
+
     def _import_plugin(self, plugin: str, plugin_config: dict) -> None:
         try:
-            if plugin.rsplit(".", maxsplit=1)[0] == "pycqBot.plugin":
+            if plugin.rsplit(".", maxsplit=1)[0] == 'plugin':
                 plugin = plugin.rsplit(".", maxsplit=1)[-1]
-                plugin_obj = importlib.import_module(f"pycqBot.plugin.{plugin}.{plugin}")
-            else:
-                plugin_obj = importlib.import_module(f"plugin.{plugin}.{plugin}")
+            plugin_obj = importlib.import_module(f'plugin.{plugin}.{plugin}')
 
             if eval(f"plugin_obj.{plugin}.__base__.__name__ != 'Plugin'"):
                 logging.warning("%s 插件未继承 pycqBot.Plugin 不进行加载" % plugin)
                 del plugin_obj
                 return
-            
+
             if plugin not in plugin_config:
                 plugin_obj = eval("plugin_obj.%s(self, self.cqapi, %s)" % (plugin, "{}"))
             else:
@@ -445,7 +451,7 @@ class cqBot(cqEvent.Event):
             self.pluginNotFoundError(plugin)
         except Exception as err:
             self.pluginImportError(plugin, err)
-    
+
     def _run_event(self, event_name: str, *args) -> None:
         event = args[0]
         if type(event) is Message_Event:
@@ -478,11 +484,11 @@ class cqBot(cqEvent.Event):
         plugin_config = self._import_plugin_config()
         if type(plugin) == str:
             self._import_plugin(plugin, plugin_config)
-        
+
         if type(plugin) == list:
             for plugin_ in plugin:
                 self._import_plugin(plugin_, plugin_config)
-        
+
         logging.info("加载插件: %s" % plugin)
         return self
 
@@ -491,7 +497,7 @@ class cqBot(cqEvent.Event):
         插件不存在
         """
         logging.error("plugin 目录下不存在插件 %s " % plugin)
-    
+
     def pluginImportError(self, plugin: str, err: Exception) -> None:
         """
         加载插件时发生错误
@@ -499,7 +505,7 @@ class cqBot(cqEvent.Event):
         logging.error("加载插件 %s 时发生错误: %s" % (plugin, err))
         logging.exception(err)
 
-    
+
     def _on_message(self, message_data: str) -> tuple[str, Optional[Event]]:
         """
         处理数据不建议修改, 错误修改将导致无法运行
@@ -510,7 +516,7 @@ class cqBot(cqEvent.Event):
         except TypeError as err:
             logging.warning(err)
             return "", None
-        
+
         event_name = event.get_event_name()
         logging.debug("go-cqhttp 上报 %s 事件: %s" % (event_name, event.data))
 
@@ -523,7 +529,7 @@ class cqBot(cqEvent.Event):
             return event_name, event
         else:
             logging.warning("未知数据协议:%s" % event_name)
-        
+
         return "", None
 
     def on_error(self, error: Exception) -> None:
@@ -545,30 +551,30 @@ class cqBot(cqEvent.Event):
             help_command_text += "\n".join(command["help"]) + "\n"
 
         return "%s\n" % self.help_text_format.format(help_command_text=help_command_text, __VERSIONS__=pycqBot.__VERSIONS__)
-        
+
     def _check_command_options(self, options: dict[str, Any]) -> dict[str, Any]:
         """
         检查指令设置
         """
         if "type" not in options:
             options["type"] = "group"
-        
+
         if "admin" not in options:
             options["admin"] = False
-        
+
         if "user" not in options:
             options["user"] = ["all"]
         else:
             options["user"] = options["user"].split(",")
-        
+
         if "ban" not in options:
             options["ban"] = []
 
         if "help" not in options:
             options["help"] = []
-        
+
         return options
-    
+
     def _check_timing_options(self, options: dict[str, Any], timing_name: str) -> Optional[dict[str, Any]]:
         options["name"] = timing_name
 
@@ -580,11 +586,11 @@ class cqBot(cqEvent.Event):
             options["ban"] = []
 
         return options
-        
+
     def command(self, function: Callable[[list[str], Message], None], command_name: Union[str, list[str]], options: Optional[dict[str, Any]] = None) -> "cqBot":
         if options is None:
             options = {}
-            
+
         options = self._check_command_options(options)
 
         if type(command_name) == str:
@@ -603,7 +609,7 @@ class cqBot(cqEvent.Event):
             for group_id in self.group_id_list:
                 if group_id in job["ban"]:
                     return
-                
+
                 run_count += 1
                 try:
                     job["function"](group_id)
@@ -615,7 +621,7 @@ class cqBot(cqEvent.Event):
 
             self._run_event("timing_jobs_end", job, run_count)
             time.sleep(job["timeSleep"])
-    
+
     def timing(self, function: Callable[[int], None], timing_name: str, options: Optional[dict[str, Any]] = None) -> "cqBot":
         if options is None:
             options = {}
@@ -638,11 +644,11 @@ class cqBot(cqEvent.Event):
         logging.info("创建定时任务 %s " % timing_name)
 
         return self
-    
+
     def set_bot_status(self, event: Meta_Event) -> None:
         self.__bot_qq = event.data["self_id"]
         self.cqapi.bot_qq = event.data["self_id"]
-    
+
     def meta_event_lifecycle_connect(self, event: Meta_Event):
         """
         连接响应
@@ -652,7 +658,7 @@ class cqBot(cqEvent.Event):
             self.cqapi._create_sql_link(self.messageSqlPath, self.messageSqlClearTime)
 
         logging.info("成功连接 websocket 服务! bot qq:%s" % self.__bot_qq)
-    
+
     def meta_event_heartbeat(self, event: Meta_Event):
         """
         心跳
@@ -666,8 +672,8 @@ class cqBot(cqEvent.Event):
         生命周期
         """
         logging.debug("生命周期: %s" % event.data)
-    
-    
+
+
     def timing_start(self):
         """
         启动定时任务
@@ -681,7 +687,7 @@ class cqBot(cqEvent.Event):
         """
         logging.debug("定时任务 %s 执行完成! 共执行 %s 次" % (job["name"], run_count))
         pass
-    
+
     def runTimingError(self, job, run_count, err, group_id):
         """
         定时任务执行错误
@@ -724,7 +730,7 @@ class cqBot(cqEvent.Event):
         commandData = command_str_list[1:]
 
         return commandSign, command, commandData
-    
+
     def _check_command(self, message: Union[Private_Message, Group_Message]):
         """
         指令检查
@@ -734,29 +740,29 @@ class cqBot(cqEvent.Event):
 
         if commandSign != self.commandSign:
             return False
-        
+
         if command not in self.__commandList:
             self.notCommandError(message)
             return False
 
         if self.__commandList[command]["type"] != message.event.message_type and self.__commandList[command]["type"] != "all":
             return False
-        
+
         self.check_command(message)
-        
+
         if type(message) is Group_Message:
 
             if message.group_id in self.__commandList[command]["ban"]:
                 self.banCommandError(message)
                 return False
-            
+
             user_list = self.__commandList[command]["user"]
             if user_list[0] != "all":
 
                 if message.anonymous is not None and "anonymous" not in user_list:
                     self.userPurviewError(message)
                     return False
-                
+
                 if message.sender.role not in user_list or user_list[0] != "nall":
                     self.userPurviewError(message)
                     return False
@@ -766,7 +772,7 @@ class cqBot(cqEvent.Event):
             return False
 
         return commandSign, command, commandData
-    
+
     def _run_command(self, message: Message):
         """
         指令运行
@@ -782,7 +788,7 @@ class cqBot(cqEvent.Event):
 
             except Exception as err:
                 self.runCommandError(message, err)
-        
+
         thread = Thread(target=run_command, args=(message, ), name="command")
         thread.setDaemon(True)
         thread.start()
@@ -792,7 +798,7 @@ class cqBot(cqEvent.Event):
         指令开始检查勾子
         """
         logging.info("%s 使用指令: %s" % (self.user_log_srt(message), message.message))
-    
+
     def _message(self, message: Message) -> Message:
         """
         通用消息处理
@@ -800,9 +806,9 @@ class cqBot(cqEvent.Event):
         # 检查等待回复
         if self.cqapi._reply_ck(message.sender.id):
             self.cqapi._reply_add(message.sender.id, message)
-        
+
         return message
-    
+
     def _message_run(self, message: Union[Message, Private_Message, Group_Message]) -> Union[Message, Private_Message, Group_Message]:
         message = self._message(message)
         self._run_event(f"on_{message.event.message_type}_msg", message)
@@ -817,9 +823,9 @@ class cqBot(cqEvent.Event):
         """
         if (message.sender.id not in self.user_id_list) and self.user_id_list != []:
             return None
-        
+
         return self._message_run(message)
-    
+
     def _message_group(self, message: Group_Message) -> Optional[Group_Message]:
         """
         通用群消息处理
@@ -836,15 +842,15 @@ class cqBot(cqEvent.Event):
             if cqCode["data"]["qq"] == str(self.__bot_qq):
                 self._run_event("at_bot", message, message.code, cqCode)
                 continue
-            
+
             self._run_event("at", message, message.code, cqCode)
 
         return message
-    
+
     def _bot_message_log(self, log, message):
         logging.info(log)
         self.cqapi.send_reply(message, log)
-    
+
     def at_bot(self, message: Group_Message, cqCode_list, cqCode):
         """
         接收到 at bot
@@ -856,7 +862,7 @@ class cqBot(cqEvent.Event):
         好友私聊消息
         """
         self._message_private(message)
-    
+
     def message_private_group(self, message: Private_Message):
         """
         群临时会话私聊消息
@@ -877,13 +883,13 @@ class cqBot(cqEvent.Event):
 
     def message_sent_group_normal(self, message: Group_Message):
         self._message_group(message)
-    
+
     def message_private_group_self(self, message: Private_Message):
         """
         群中自身私聊消息
         """
         self._message_private(message)
-    
+
     def message_private_other(self, message: Private_Message):
         """
         私聊消息
@@ -895,7 +901,7 @@ class cqBot(cqEvent.Event):
         群消息
         """
         self._message_group(message)
-    
+
     def notCommandError(self, message: Message):
         """
         指令不存在时错误
@@ -905,32 +911,32 @@ class cqBot(cqEvent.Event):
             return
 
         self._bot_message_log("指令 %s 不存在..." % message.message, message)
-    
+
     def banCommandError(self, message: Message):
         """
         指令被禁用时错误
         """
         self._bot_message_log("指令 %s 被禁用!" % message.message, message)
-    
+
     def userPurviewError(self, message: Message):
         """
         指令用户组权限不足时错误
         """
         self._bot_message_log("%s 用户组权限不足... 指令 %s" % (self.user_log_srt(message), message.message), message)
-    
+
     def purviewError(self, message: Message):
         """
         指令权限不足时错误 (bot admin)
         """
         self._bot_message_log("%s 权限不足... 指令 %s" % (self.user_log_srt(message), message.message), message)
-    
+
     def runCommandError(self, message: Message, err: Exception):
         """
         指令运行时错误
         """
         self._bot_message_log("指令 %s 运行时错误... Error: %s" % (message.message, err), message)
         logging.exception(err)
-    
+
     def notice_group_decrease_kick_me(self, event: Notice_Event):
         """
         群成员减少 - 登录号被踢
@@ -945,7 +951,7 @@ class cqBot(cqEvent.Event):
 
             if user_data is None:
                 return
-            
+
             logging.info("bot 被 %s (qq=%s) T出群 %s" % (user_data["data"]["nickname"], user_data["data"]["user_id"], event.data["group_id"]))
 
         self.cqapi.add_task(_notice_group_decrease_kick_me(event))
@@ -953,9 +959,9 @@ class cqBot(cqEvent.Event):
 
 class cqLog:
 
-    def __init__(self, level=logging.DEBUG, 
-            logPath="./cqLogs", 
-            when="d", 
+    def __init__(self, level=logging.DEBUG,
+            logPath="./logs",
+            when="d",
             interval=1,
             backupCount=7
         ):
@@ -968,12 +974,12 @@ class cqLog:
 
         sh = logging.StreamHandler()
         rh = handlers.TimedRotatingFileHandler(
-            os.path.join(logPath, "cq.log"), 
+            os.path.join(logPath, "cq.log"),
             when,
             interval,
             backupCount
         )
-        
+
         logger.addHandler(sh)
         logger.addHandler(rh)
 
@@ -982,6 +988,6 @@ class cqLog:
         )
         sh.setFormatter(formatter)
         rh.setFormatter(formatter)
-        
+
     def setFormat(self):
         return "\033[0m[%(asctime)s][%(threadName)s/%(levelname)s] PyCqBot: %(message)s\033[0m"
