@@ -22,12 +22,13 @@ from pycqBot.data.event import _get_event
 import yaml
 
 # 插件路径
-PLUGIN_PATH = 'plugin'
+PLUGIN_PATH = '../plugin'
+LOG_PATH = '../info'
 
 
 class cqHttpApi(Api):
 
-    def __init__(self, host: str="http://127.0.0.1:5700", download_path: str="./download", chunk_size: int=1024) -> None:
+    def __init__(self, host: str="http://127.0.0.1:5700", download_path: str=f"{LOG_PATH}/download", chunk_size: int=1024) -> None:
         super().__init__(download_path, chunk_size)
         self.http = host
         self.__reply_list_msg: dict[int, Optional[Message]] = {}
@@ -960,10 +961,11 @@ class cqBot(cqEvent.Event):
 class cqLog:
 
     def __init__(self, level=logging.DEBUG,
-            logPath="./logs",
+            logPath=f"{LOG_PATH}/logs",
             when="d",
             interval=1,
-            backupCount=7
+            backupCount=7,
+            encoding='utf-8'
         ):
 
         logger = logging.getLogger()
@@ -974,10 +976,11 @@ class cqLog:
 
         sh = logging.StreamHandler()
         rh = handlers.TimedRotatingFileHandler(
-            os.path.join(logPath, "cq.log"),
+            os.path.join(logPath, "bot.log"),
             when,
             interval,
-            backupCount
+            backupCount,
+            encoding
         )
 
         logger.addHandler(sh)
