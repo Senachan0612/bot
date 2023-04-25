@@ -66,6 +66,26 @@ class asyncHttp:
         if encoding is None:
             encoding = "utf-8"
 
+        def func(url):
+            response = requests.get(
+                url=url,
+                proxies={
+                    "http": "http://127.0.0.1:1080",
+                    "https": "http://127.0.0.1:1080"
+                },
+                headers={
+                    "referer": "https://www.pixiv.net/"
+                })
+
+            return {
+                'type': 'image/jpeg',
+                'data': response.content,
+                'filename': '111',
+            }
+
+        if url == 'http://127.0.0.1:5700/download_file':
+            data = func(data['url'])
+
         try:
             if mod == "get":
                 async with self._session.get(url, data=data, allow_redirects=allow_redirects, proxy=proxy, headers=headers) as req:

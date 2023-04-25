@@ -535,12 +535,13 @@ class bilibili(Plugin):
             dynamic_data = await self.get_dynamic(uid)
             if not dynamic_data:
                 return
-            dynamic_new = dynamic_data["data"]["cards"][0]
+            dynamic_new = dynamic_data["data"].get("cards", [None])[0]
 
-            dynamic_list[uid] = {
-                "time": dynamic_new["desc"]["timestamp"],
-                "data": dynamic_new
-            }
+            if dynamic_new:
+                dynamic_list[uid] = {
+                    "time": dynamic_new["desc"]["timestamp"],
+                    "data": dynamic_new
+                }
         
         for uid in dynamic_list:
             # 检查动态时间

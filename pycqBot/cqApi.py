@@ -1,6 +1,9 @@
 from typing import Optional, Union
 from pycqBot.asyncHttp import asyncHttp
 from pycqBot.data.message import *
+import os
+
+THREAD = os.cpu_count() // 2 or 1
 
 
 class Api(asyncHttp):
@@ -1524,7 +1527,7 @@ class Api(asyncHttp):
         self,
         url: str,
         headers,
-        thread_count: int
+        thread_count: int = THREAD
     ):
         """
         go-cqhttp 的内置下载
@@ -1547,7 +1550,7 @@ class Api(asyncHttp):
         self,
         url: str,
         headers,
-        thread_count: int
+        thread_count: int = THREAD
     ):
         """
         go-cqhttp 的内置下载 (异步)

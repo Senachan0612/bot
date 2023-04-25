@@ -104,7 +104,7 @@ class pixiv(Plugin):
         """
         message_list = []
         for image_url in image_list:
-            cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers)
+            cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers, thread_count=1)
             message_list.append(self._ck_send_type(
                     image_url[0], 
                     image("file://%s" % cache_file),
@@ -305,7 +305,7 @@ class pixiv(Plugin):
     async def _search_following_image_random(self, rlen, message):
         try:
             offset = 0
-            if self._following_count != 0:
+            if self._following_count != 0 and self._following_count > 24:
                 random_page = random.randint(1, int(self._following_count / 24))
                 if random_page != 1:
                     offset = random_page * 24

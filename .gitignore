@@ -3,6 +3,7 @@
 /bin/start_config.yml
 /go-cqhttp
 /info
+/test
 /plugin/plugin_config.yml
 /pycqBot.egg-info
 /pycqBot/*/__pycache__
