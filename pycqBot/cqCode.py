@@ -455,11 +455,11 @@ def music_custom(
 
 
 def image(
-    file: str, 
+    file: str,
+    url: Optional[str] = None,
     type: Optional[str] = None, 
-    subType: Optional[str] = None, 
-    url: Optional[str] = None, 
-    cache: Optional[int] =  None, 
+    cache: Optional[int] =  None,
+    subType: Optional[str] = None,
     id: Optional[str] = None,
     c: Optional[int] = None
 ) -> str:

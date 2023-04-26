@@ -93,7 +93,7 @@ class Private_Message(Message):
         """临时会话来源"""
 
     def reply(self, message: str, auto_escape: bool = False) -> None:
-        self._cqapi.send_private_msg(self.sender.id, "%s%s" % (reply(msg_id=self.id), message), self.temp_source, auto_escape)
+        self._cqapi.send_private_msg(self.sender.id, "%s%s" % (reply(id=self.id), message), self.temp_source, auto_escape)
 
     def reply_not_code(self, message: str, auto_escape: bool=False) -> None:
         self._cqapi.send_private_msg(self.sender.id, message, self.temp_source, auto_escape)

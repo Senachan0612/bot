@@ -56,7 +56,9 @@ class asyncHttp:
 
         return json
 
-    async def link(self, url: str, mod: str="get", data: dict=None, json: bool=True, allow_redirects: bool=False, proxy: str=None, headers: dict=None, encoding: str=None) -> Optional[dict]:
+    async def link(self, url: str, mod: str = "get", data: dict = None, json: bool = True,
+                   allow_redirects: bool = False, proxy: str = None, headers: dict = None,
+                   encoding: str = None, byte=False) -> Optional[dict] or bytes:
         if headers is None:
             headers = {}
 
@@ -66,37 +68,21 @@ class asyncHttp:
         if encoding is None:
             encoding = "utf-8"
 
-        def func(url):
-            response = requests.get(
-                url=url,
-                proxies={
-                    "http": "http://127.0.0.1:1080",
-                    "https": "http://127.0.0.1:1080"
-                },
-                headers={
-                    "referer": "https://www.pixiv.net/"
-                })
-
-            return {
-                'type': 'image/jpeg',
-                'data': response.content,
-                'filename': '111',
-            }
-
-        if url == 'http://127.0.0.1:5700/download_file':
-            data = func(data['url'])
-
         try:
             if mod == "get":
                 async with self._session.get(url, data=data, allow_redirects=allow_redirects, proxy=proxy, headers=headers) as req:
-                    if json:
+                    if byte:
+                        http_data = await req.content.read()
+                    elif json:
                         http_data = await req.json(encoding=encoding)
                     else:
                         http_data = await req.text(encoding=encoding)
 
             if mod == "post":
                 async with self._session.post(url, data=data, allow_redirects=allow_redirects, proxy=proxy, headers=headers) as req:
-                    if json:
+                    if byte:
+                        http_data = await req.content.read()
+                    elif json:
                         http_data = await req.json(encoding=encoding)
                     else:
                         http_data = await req.text(encoding=encoding)

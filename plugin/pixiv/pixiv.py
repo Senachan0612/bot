@@ -1,10 +1,16 @@
 import logging
 import random
+import os
+import sys
 from lxml import etree
 from pycqBot.cqHttpApi import cqBot, cqHttpApi
 from pycqBot.cqCode import image, node_list
 from pycqBot.object import Plugin
 from pycqBot.data import *
+
+
+DOWNLOAD_PATH = r'../info/download/pixiv'
+LOCAL_PATH = sys.path[0].replace('\\', '/')
 
 
 class pixiv(Plugin):
@@ -35,7 +41,10 @@ class pixiv(Plugin):
             "referer=https://www.pixiv.net/",
             "cookie=%s" % plugin_config["cookie"]
         ]
-
+        self._headers_dict = {
+            'Referer': 'https://www.pixiv.net/',
+            'User-Agent': plugin_config['user_agent']
+        }
         self._pyheaders = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
             "cookie": plugin_config["cookie"]
@@ -66,6 +75,11 @@ class pixiv(Plugin):
                 ]
             }
         )
+
+        # 定时任务 清理数据
+        bot.timing(self._file_clear, "pixiv_file_clear", {
+            "timeSleep": plugin_config["timeSleep"] if "timeSleep" in plugin_config else 86400
+        })
 
     def _json_data_check(self, data):
         if data["error"]:
@@ -103,14 +117,22 @@ class pixiv(Plugin):
         转发图片表
         """
         message_list = []
-        for image_url in image_list:
-            cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers, thread_count=1)
+        for index, image_url in enumerate(image_list):
+            if isinstance(image_url[0], dict):
+                # 搜索作品
+                image_info = [image_url[0]['id'], image_url[1]]
+            else:
+                image_info = [image_url[0], image_url[1]]
+
+            cache_file = await self.file_download(index, image_info)
+            # cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers, thread_count=1)
+
             message_list.append(self._ck_send_type(
-                    image_url[0], 
-                    image("file://%s" % cache_file),
-                    send_type
-                )
-            )
+                image_url[0],
+                # image('file:///Y:/bot/bin/../info/download/pixiv/32760562.jpg'),
+                image('file:///%s/%s') % (LOCAL_PATH, cache_file),
+                send_type
+            ))
 
         self.cqapi.send_group_forward_msg(message.group_id, node_list(message_list, 
             self._forward_name,
@@ -327,7 +349,12 @@ class pixiv(Plugin):
         """
         搜索标签随机图
         """
-        self.cqapi.add_task(self._search_image_random(commandData[0], commandData[1], message))
+        try:
+            _len = int(commandData[1])
+        except Exception:
+            _len = 5
+
+        self.cqapi.add_task(self._search_image_random(commandData[0], _len, message))
     
     def search_user_image_random(self, commandData, message: Message):
         """
@@ -440,3 +467,37 @@ class pixiv(Plugin):
         请求 pixiv api 时错误
         """
         logging.error("请求 pixiv api发生错误! Error: %s " % err_msg)
+
+    async def file_download(self, index, image_info, path=DOWNLOAD_PATH, reload=False):
+        """
+        image_info=[pid, http-url]
+        """
+        if not os.path.isdir(path):
+            os.makedirs(path)
+
+        file_name = '%s-%s.%s' % (image_info[0], index, image_info[1].split('.')[-1])
+        file_path = r'%s/%s' % (path, file_name)
+
+        if reload or not os.path.isfile(file_path):
+            # 使用link下载
+            byte_file = await self.cqapi.link(url=image_info[1], mod='get', headers=self._headers_dict,
+                                              proxy=self._proxy, json=False, byte=True)
+            with open(file_path, 'wb') as f:
+                f.write(byte_file)
+
+        return file_path
+
+    def _file_clear(self, _file_path=DOWNLOAD_PATH):
+        """
+        定时清理数据
+        """
+        try:
+            for root, dirs, files in os.walk(DOWNLOAD_PATH):
+                # 删除所有文件
+                for file in files:
+                    os.remove(os.path.join(root, file))
+                # 删除所有空文件夹
+                for dir in dirs:
+                    os.rmdir(os.path.join(root, dir))
+        except Exception:
+            pass
