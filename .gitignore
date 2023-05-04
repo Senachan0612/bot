@@ -5,6 +5,7 @@
 /info
 /test
 /plugin/plugin_config.yml
+/plugin/*/__pycache__
 /pycqBot.egg-info
 /pycqBot/*/__pycache__
 /dumps

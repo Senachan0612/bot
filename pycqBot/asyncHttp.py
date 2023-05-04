@@ -56,7 +56,7 @@ class asyncHttp:
 
         return json
 
-    async def link(self, url: str, mod: str = "get", data: dict = None, json: bool = True,
+    async def link(self, url: str, mod: str = "get", data=None, json: bool = True,
                    allow_redirects: bool = False, proxy: str = None, headers: dict = None,
                    encoding: str = None, byte=False) -> Optional[dict] or bytes:
         if headers is None:
