@@ -453,7 +453,8 @@ class Api(asyncHttp):
         })
 
     def can_send_image(
-        self
+        self,
+        image
     ):
         """
         检查是否可以发送图片
@@ -464,7 +465,9 @@ class Api(asyncHttp):
         go-cqhttp 文档:
         https://docs.go-cqhttp.org/api/#%E6%A3%80%E6%9F%A5%E6%98%AF%E5%90%A6%E5%8F%AF%E4%BB%A5%E5%8F%91%E9%80%81%E5%9B%BE%E7%89%87
         """
-        return self._link("/can_send_image")
+        return self._link("/can_send_image", {
+            "image": image
+        })
 
     def ocr_image(
         self,

@@ -51,30 +51,30 @@ class pixiv(Plugin):
         }
 
         bot.command(self.search_user_image_random, "搜索用户", {
-                "help": [
-                    "#搜索用户 - 从指定用户返回指定量图 加上模糊 将使用模糊搜索",
-                    "   格式: #搜索用户 [用户名] [指定量] [模糊(可选)]"
-                ]
-            }
-        ).command(self.search_image_random, "搜索作品", {
-                "help": [
-                    "#搜索作品 - 从指定标签返回指定量图",
-                    "   格式: #搜索作品 [标签] [指定量]"
-                ]
-            }
-        ).command(self.search_following_image_random, "图来", {
+            "help": [
+                "#搜索用户 - 从指定用户返回指定量图 加上模糊 将使用模糊搜索",
+                "   格式: #搜索用户 [用户名] [指定量] [模糊(可选)]"
+            ]
+        }).command(self.search_following_image_random, "图来", {
             "help": [
                 "#图来 - 从本 bot pixiv 关注画师返回随机5张图",
                 "这个质量可控，跟着 bot xp 随机",
                 "   格式: #图来"
             ]
         }).command(self.search_pid, "pid", {
-                "help": [
-                    "#pid - 从指定 pid 返回图",
-                    "   格式: #pid [pid]"
-                ]
-            }
-        )
+            "help": [
+                "#pid - 从指定 pid 返回图",
+                "   格式: #pid [pid]"
+            ]
+        })
+
+        # 移除该功能
+        # .command(self.search_image_random, "搜索作品", {
+        #     "help": [
+        #         "#搜索作品 - 从指定标签返回指定量图",
+        #         "   格式: #搜索作品 [标签] [指定量]"
+        #     ]
+        # })
 
         # 定时任务 清理数据
         bot.timing(self._file_clear, "pixiv_file_clear", {
@@ -129,15 +129,12 @@ class pixiv(Plugin):
 
             message_list.append(self._ck_send_type(
                 image_url[0],
-                # image('file:///Y:/bot/bin/../info/download/pixiv/32760562.jpg'),
                 image('file:///%s/%s') % (LOCAL_PATH, cache_file),
                 send_type
             ))
 
-        self.cqapi.send_group_forward_msg(message.group_id, node_list(message_list, 
-            self._forward_name,
-            self._forward_qq
-        ))
+        self.cqapi.send_group_forward_msg(message.group_id,
+                                          node_list(message_list, self._forward_name, self._forward_qq))
     
     async def _get_following(self, offset):
         api = "https://www.pixiv.net/ajax/user/%s/following?offset=%s&limit=24&rest=show&tag=&lang=zh" % (
