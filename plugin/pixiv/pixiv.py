@@ -57,8 +57,7 @@ class pixiv(Plugin):
             ]
         }).command(self.search_following_image_random, "图来", {
             "help": [
-                "#图来 - 从本 bot pixiv 关注画师返回随机5张图",
-                "这个质量可控，跟着 bot xp 随机",
+                "#图来 - 从本 bot pixiv 关注画师返回随机5张图，跟着 bot xp 随机",
                 "   格式: #图来"
             ]
         }).command(self.search_pid, "pid", {
