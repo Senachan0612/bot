@@ -722,7 +722,7 @@ class cqBot(cqEvent.Event):
         """
 
         if self.commandSign != "":
-            commandSign = list(message)[0]
+            commandSign = list(message) and list(message)[0]
         else:
             commandSign = ""
 
