@@ -34,6 +34,7 @@ class cqHttpApi(Api):
         self.__reply_list_msg: dict[int, Optional[Message]] = {}
         self.thread_count = 4
         self.bot_qq = 0
+        self.bot_name = 'bot'
 
     def create_bot(self, host: str="ws://127.0.0.1:8080", group_id_list: list[int]=[], user_id_list: list[int]=[], options: dict[str, Any]={}) -> "cqBot":
         """
@@ -200,6 +201,8 @@ class cqBot(cqEvent.Event):
         self.__timingList: dict[str, dict] = {}
         # bot qq
         self.__bot_qq: int= 0
+        # bot 自称
+        self._bot_name: str = ''
         # 需处理群
         self.group_id_list: list[int] = group_id_list
         # 需处理私信
@@ -649,6 +652,7 @@ class cqBot(cqEvent.Event):
     def set_bot_status(self, event: Meta_Event) -> None:
         self.__bot_qq = event.data["self_id"]
         self.cqapi.bot_qq = event.data["self_id"]
+        self.cqapi.bot_name = self._bot_name
 
     def meta_event_lifecycle_connect(self, event: Meta_Event):
         """

@@ -147,7 +147,7 @@ https://docs.go-cqhttp.org/cqcode/
 """
 
 
-def node_list(message_list: list[str], name: str, uin: int) -> str:
+def node_list(message_list: list[str] or iter, name: str, uin: int) -> str:
     """
     合并转发列表生成
     """
@@ -155,6 +155,18 @@ def node_list(message_list: list[str], name: str, uin: int) -> str:
     for message in message_list:
         node_list_data.append(node(content=message, name=name, uin=uin))
     
+    return json_data.dumps(node_list_data, separators=(',', ':'), ensure_ascii=False)
+
+
+def node_list_alter(message_list: iter):
+    """
+    合并转发列表生成 (个性化)
+        (内容, 名字, qq)
+    """
+    node_list_data = []
+    for _info, _name, _uid in message_list:
+        node_list_data.append(node(content=_info, name=_name, uin=_uid))
+
     return json_data.dumps(node_list_data, separators=(',', ':'), ensure_ascii=False)
 
 
