@@ -170,8 +170,10 @@ class chatgpt(Plugin):
         logging.exception(err)
 
     @staticmethod
-    def format_time(date=datetime.datetime.now()):
-        return date.strftime("%Y-%m-%d %H:%M:%S")
+    def format_time(_date=None):
+        if not _date:
+            _date = datetime.datetime.now()
+        return _date.strftime("%Y-%m-%d %H:%M:%S")
 
     def format_response(self, response):
         # 解析响应
