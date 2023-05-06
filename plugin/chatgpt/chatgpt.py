@@ -45,7 +45,7 @@ class chatgpt(Plugin):
         # 上下文管理存放路径
         self._path = plugin_config.get('path', DOWNLOAD_PATH)
         # bot自称
-        self._name = cqapi.bot_name
+        self._name = self.bot._bot_name
 
         bot.command(self.new_chat, '新建会话', {
             'help': [
