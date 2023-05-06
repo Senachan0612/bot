@@ -44,6 +44,8 @@ class chatgpt(Plugin):
         self.titles = set()
         # 上下文管理存放路径
         self._path = plugin_config.get('path', DOWNLOAD_PATH)
+        # bot自称
+        self._name = cqapi.bot_name
 
         bot.command(self.new_chat, '新建会话', {
             'help': [
@@ -171,10 +173,9 @@ class chatgpt(Plugin):
     def format_time(date=datetime.datetime.now()):
         return date.strftime("%Y-%m-%d %H:%M:%S")
 
-    @staticmethod
-    def format_response(response):
+    def format_response(self, response):
         # 解析响应
-        analyze_dict = [SPLIT_SIGN, '<OPENAI>：', '<OPENAI>回答：']
+        analyze_dict = [SPLIT_SIGN, f'<{self._name}>：', f'<{self._name}>回答：']
         res = response['choices'][0]['message']['content']
 
         for flag in analyze_dict:
@@ -239,7 +240,7 @@ class chatgpt(Plugin):
                 _context = (f'[%s]<%s>{SPLIT_SIGN}%s' % (row['date'], row['name'], row['info']) for row in reader)
 
                 text = f'''
-对话上下文(格式为"[时间]<用户>：消息内容"，用户"OPENAI"代表的是你的回复，回复以"[时间]<OPENAI>{SPLIT_SIGN}"的格式开头)：\n
+对话上下文(格式为"[时间]<用户>：消息内容"，用户"{self._name}"代表的是你的回复，回复以"[时间]<{self._name}>{SPLIT_SIGN}"的格式开头)：\n
 %s \n
 [%s]<%s>提问：%s
 ''' % ('\n'.join(_context), _data[0], _data[2], _data[3])
