@@ -75,14 +75,14 @@ class chatgpt(Plugin):
         """
         if not commandData:
             # 回复消息
-            message.reply('新建会话命令有误，指令例子："#新建会话 测试会话"。')
+            return message.reply('新建会话命令有误，指令例子："#新建会话 测试会话"。')
 
         _title = commandData[0]
         _path = self.format_path(_title, message.sender.group_id)
 
         if os.path.isfile(_path):
             # 回复消息
-            message.reply('会话[%s]已存在，无法重新创建！' % _title)
+            return message.reply('会话[%s]已存在，无法重新创建！' % _title)
 
         self.cqapi.add_task(self._new_chat(_title, message))
 
@@ -96,13 +96,13 @@ class chatgpt(Plugin):
         """
         if not commandData:
             # 回复消息
-            message.reply('删除会话命令有误，指令例子："#删除会话 测试会话"。')
+            return message.reply('删除会话命令有误，指令例子："#删除会话 测试会话"。')
         _title = commandData[0]
         _path = self.format_path(_title, message.sender.group_id)
 
         if not os.path.isfile(_path):
             # 回复消息
-            message.reply('会话[%s]不存在，删除失败！' % _title)
+            return message.reply('会话[%s]不存在，删除失败！' % _title)
 
         self.cqapi.add_task(self._clear_chat(_title, _path, message))
 
@@ -131,7 +131,7 @@ class chatgpt(Plugin):
             # 查询明细
             if not os.path.isfile(_path):
                 # 回复消息
-                message.reply('会话[%s]不存在，查询失败！' % _title)
+                return message.reply('会话[%s]不存在，查询失败！' % _title)
 
             with open(_path, 'r', encoding='utf8') as file:
                 reader = csv.DictReader(file)
@@ -237,7 +237,7 @@ class chatgpt(Plugin):
 
             with open(context_path, 'r', encoding='utf8') as file:
                 reader = csv.DictReader(file)
-                _context = (f'[%s]<%s>{SPLIT_SIGN}%s' % (row['date'], row['name'], row['info']) for row in reader)
+                _context = (f'[%s]<%s>：%s' % (row['date'], row['name'], row['info']) for row in reader)
 
                 text = f'''
 对话上下文(格式为"[时间]<用户>：消息内容"，用户"{self._name}"代表的是你的回复，回复以"[时间]<{self._name}>{SPLIT_SIGN}"的格式开头)：\n
