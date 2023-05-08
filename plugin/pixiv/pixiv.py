@@ -2,15 +2,21 @@ import logging
 import random
 import os
 import sys
+from io import BytesIO
 from lxml import etree
 from pycqBot.cqHttpApi import cqBot, cqHttpApi
 from pycqBot.cqCode import image, node_list
 from pycqBot.object import Plugin
 from pycqBot.data import *
-
+from PIL import Image
 
 DOWNLOAD_PATH = r'../info/download/pixiv'
 LOCAL_PATH = sys.path[0].replace('\\', '/')
+
+# 保存文件类型
+SAVE_IMG_TYPE = 'webp'
+# 展示文件类型
+SHOW_IMG_TYPE = 'bmp'
 
 
 class pixiv(Plugin):
@@ -124,11 +130,14 @@ class pixiv(Plugin):
                 image_info = [image_url[0], image_url[1]]
 
             cache_file = await self.file_download(index, image_info)
-            # cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers, thread_count=1)
+
+            if not cache_file:
+                message_list.append('图片展示异常')
+                continue
 
             message_list.append(self._ck_send_type(
                 image_url[0],
-                image('file:///%s/%s') % (LOCAL_PATH, cache_file),
+                image('file:///%s/%s' % (LOCAL_PATH, cache_file)),
                 send_type
             ))
 
@@ -471,15 +480,20 @@ class pixiv(Plugin):
         if not os.path.isdir(path):
             os.makedirs(path)
 
-        file_name = '%s-%s.%s' % (image_info[0], index, image_info[1].split('.')[-1])
+        file_name = '%s-%s.%s' % (image_info[0], index, SHOW_IMG_TYPE)
         file_path = r'%s/%s' % (path, file_name)
 
         if reload or not os.path.isfile(file_path):
             # 使用link下载
             byte_file = await self.cqapi.link(url=image_info[1], mod='get', headers=self._headers_dict,
                                               proxy=self._proxy, json=False, byte=True)
-            with open(file_path, 'wb') as f:
-                f.write(byte_file)
+
+            try:
+                with open(file_path, 'wb') as f:
+                    # 转换为Pillow Image对象
+                    Image.open(BytesIO(byte_file)).save(f, SAVE_IMG_TYPE)
+            except Exception as e:
+                return None
 
         return file_path
 
