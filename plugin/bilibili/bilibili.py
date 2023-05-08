@@ -438,7 +438,7 @@ class bilibili(Plugin):
             dynamic["owner"]["name"],
             dynamic["title"],
             dynamic["tname"],
-            dynamic["short_link"],
+            dynamic.get('short_link') or dynamic.get('short_link_v2'),
             dynamic["desc"],
             image(dynamic["pic"].split("/")[-1], dynamic["pic"]),
         )
