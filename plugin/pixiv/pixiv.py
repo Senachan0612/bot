@@ -12,7 +12,8 @@ from PIL import Image
 
 DOWNLOAD_PATH = r'../info/download/pixiv'
 LOCAL_PATH = sys.path[0].replace('\\', '/')
-
+# 线程数
+THREADS = os.cpu_count() // 2 or 1
 # 保存文件类型
 SAVE_IMG_TYPE = 'webp'
 # 展示文件类型
@@ -138,15 +139,20 @@ class pixiv(Plugin):
             else:
                 image_info = [image_url[0], image_url[1]]
 
-            cache_file = await self.file_download(index, image_info)
+            try:
+                cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers, thread_count=THREADS)
+            except Exception:
+                cache_file = None
 
-            if not cache_file:
+            img_file = await self.file_download(index, image_info, cache_file=cache_file)
+
+            if not img_file:
                 message_list.append('图片展示异常')
                 continue
 
             message_list.append(self._ck_send_type(
                 image_url[0],
-                image('file:///%s/%s' % (LOCAL_PATH, cache_file)),
+                image('file:///%s/%s' % (LOCAL_PATH, img_file)),
                 send_type
             ))
 
@@ -483,7 +489,7 @@ class pixiv(Plugin):
         """
         logging.error("请求 pixiv api发生错误! Error: %s " % err_msg)
 
-    async def file_download(self, index, image_info, path=DOWNLOAD_PATH, reload=False):
+    async def file_download(self, index, image_info, path=DOWNLOAD_PATH, reload=False, cache_file=None):
         """
         image_info=[pid, http-url]
         """
@@ -494,9 +500,17 @@ class pixiv(Plugin):
         file_path = r'%s/%s' % (path, file_name)
 
         if reload or not os.path.isfile(file_path):
-            # 使用link下载
-            byte_file = await self.cqapi.link(url=image_info[1], mod='get', headers=self._headers_dict,
-                                              proxy=self._proxy, json=False, byte=True)
+            byte_file = None
+            if cache_file:
+                # 读取缓存
+                with open(cache_file, 'rb') as f:
+                    # 转换为Pillow Image对象
+                    byte_file = f.read()
+
+            if not byte_file:
+                # 使用link下载
+                byte_file = await self.cqapi.link(url=image_info[1], mod='get', headers=self._headers_dict,
+                                                  proxy=self._proxy, json=False, byte=True)
 
             try:
                 with open(file_path, 'wb') as f:
