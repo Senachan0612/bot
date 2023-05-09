@@ -86,6 +86,15 @@ class pixiv(Plugin):
             "timeSleep": plugin_config["timeSleep"] if "timeSleep" in plugin_config else 86400
         })
 
+    def lottery_random_resentment(self, group_id):
+        """
+            群内随机抽取一个怨种
+        """
+        _l = [(info['user_id'], info['card'] or info['nickname'] or '涩图姬')
+              for info in self.cqapi.get_group_member_list(group_id).get('data', [])]
+
+        return _l[int(len(_l) * random.random() // 1)] if _l else (self._forward_qq, self._forward_name)
+
     def _json_data_check(self, data):
         if data["error"]:
             self.pixivApiError(data)
@@ -141,8 +150,9 @@ class pixiv(Plugin):
                 send_type
             ))
 
-        self.cqapi.send_group_forward_msg(message.group_id,
-                                          node_list(message_list, self._forward_name, self._forward_qq))
+        # 抽选一个随机怨种当无情的发图机器
+        _forward_qq, _forward_name = self.lottery_random_resentment(message.sender.group_id)
+        self.cqapi.send_group_forward_msg(message.group_id, node_list(message_list, _forward_name, _forward_qq))
     
     async def _get_following(self, offset):
         api = "https://www.pixiv.net/ajax/user/%s/following?offset=%s&limit=24&rest=show&tag=&lang=zh" % (
