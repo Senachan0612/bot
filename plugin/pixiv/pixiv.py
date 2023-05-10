@@ -139,11 +139,13 @@ class pixiv(Plugin):
             else:
                 image_info = [image_url[0], image_url[1]]
 
-            try:
-                cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers, thread_count=THREADS)
-            except Exception:
-                cache_file = None
+            # try:
+            #     cache_file = await self.cqapi._cqhttp_download_file(image_url[1], self._headers, thread_count=THREADS)
+            # except Exception:
+            #     cache_file = None
+            cache_file = None
 
+            # 使用 内置/file_download接口下载后，需要在再次转换为webp类型，因此此处不使用内置下载改为直接下载
             img_file = await self.file_download(index, image_info, cache_file=cache_file)
 
             if not img_file:
@@ -381,11 +383,18 @@ class pixiv(Plugin):
         """
         搜索用户随机图
         """
+        commandData = [x for x in commandData if x]
+        _search_name = commandData[0]
+        try:
+            _search_number = int(commandData[1])
+        except (IndexError, ValueError):
+            _search_number = self._max_rlen
+
         nick = False
-        if len(commandData) == 3:
-            if commandData[2] == "模糊":
-                nick = True
-        self.cqapi.add_task(self._search_user_image_random(commandData[0], commandData[1], message, nick))
+        if len(commandData) > 1 and commandData[-1] == '模糊':
+            nick = True
+
+        self.cqapi.add_task(self._search_user_image_random(_search_name, _search_number, message, nick))
     
     def search_pid(self, commandData, message: Message):
         """
