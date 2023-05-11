@@ -1,7 +1,9 @@
 import logging
 import random
 import os
+import re
 import sys
+import time
 from io import BytesIO
 from lxml import etree
 from pycqBot.cqHttpApi import cqBot, cqHttpApi
@@ -9,6 +11,7 @@ from pycqBot.cqCode import image, node_list
 from pycqBot.object import Plugin
 from pycqBot.data import *
 from PIL import Image
+from bs4 import BeautifulSoup
 
 DOWNLOAD_PATH = r'../info/download/pixiv'
 LOCAL_PATH = sys.path[0].replace('\\', '/')
@@ -73,6 +76,12 @@ class pixiv(Plugin):
                 "   格式: #pid [pid]"
             ]
         })
+        #     .command(self.push_daily_list, "xxx", {
+        #     "help": [
+        #         "#pid - 从指定 pid 返回图",
+        #         "   格式: #pid [pid]"
+        #     ]
+        # })
 
         # 移除该功能
         # .command(self.search_image_random, "搜索作品", {
@@ -82,10 +91,11 @@ class pixiv(Plugin):
         #     ]
         # })
 
-        # 定时任务 清理数据
-        bot.timing(self._file_clear, "pixiv_file_clear", {
-            "timeSleep": plugin_config["timeSleep"] if "timeSleep" in plugin_config else 86400
-        })
+        if plugin_config.get('timeSleep'):
+            # 定时任务 清理数据
+            bot.timing(self.file_clear, "pixiv_file_clear", {
+                "timeSleep": plugin_config.get('timeSleep')
+            })
 
     def lottery_random_resentment(self, group_id):
         """
@@ -530,7 +540,7 @@ class pixiv(Plugin):
 
         return file_path
 
-    def _file_clear(self, _file_path=DOWNLOAD_PATH):
+    def file_clear(self):
         """
         定时清理数据
         """
@@ -544,3 +554,250 @@ class pixiv(Plugin):
                     os.rmdir(os.path.join(root, dir))
         except Exception:
             pass
+
+    def push_daily_list(self, commandData, message: Message):
+        """
+            推送日榜前十
+        """
+        _date = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+        self.cqapi.add_task(self.func('2023-05-09'))
+
+    async def func(self, _date):
+        _url = 'https://www.pixiv.net/ranking.php?mode=daily&content=illust&date=%s' % _date
+
+        html_text = await self.cqapi.link(_url, json=False, proxy=self._proxy, headers=self._pyheaders)
+
+        soup = BeautifulSoup(html_text, 'html.parser')
+        ranking_items = soup.find_all('li', class_='ranking-item')
+
+        a = 1
+
+    #     f = session.get(dailyurl, headers=headers)
+    #
+    #
+    #     _path = '%s/%s' % (DOWNLOAD_PATH, _date)
+    #     pattern = 'member_illust\.php\?mode=medium&amp;illust_(id=\d+)&amp;uarea=daily&amp;ref=rn-b-'
+    #     pid = re.findall(pattern, f.text, re.S)
+    #
+    # # 具体要哪天的日榜（普通）
+    # def getwhichday(date):
+    #
+    #     dailyurl = 'http://www.pixiv.net/ranking.php?mode=daily&date=' + date
+    #     f = session.get(dailyurl, headers=headers)
+    #     # print f.text
+    #     print
+    #     '——————————————————————————————————————————————'
+    #
+    #     # 获取当天日期
+    #     # date = time.strftime('%Y-%m-%d',time.localtime(time.time()))
+    #     # 因为添加了参数，故以你输入的date为文件名
+    #     if os.path.exists(date):
+    #         # 切换当前目录
+    #         os.chdir(date)
+    #     else:
+    #         # 创建当前日期的文件夹
+    #         os.mkdir(date)
+    #         os.chdir(date)
+    #
+    #     # 获取id
+    #     for i in range(0, 10):
+    #         # 因为日榜上的图片可能会被删，此时当前顺位的图会被轮空，故修改正则表达式
+    #         # pattern = 'member_illust\.php\?mode=medium&amp;illust_(id=\d+)&amp;uarea=daily&amp;ref=rn-b-'+str(i)+'-thumbnail-3'
+    #         pattern = 'member_illust\.php\?mode=medium&amp;illust_(id=\d+)&amp;uarea=daily&amp;ref=rn-b-'
+    #         pid = re.findall(pattern, f.text, re.S)
+    #         print
+    #         pid[i]
+    #         # 拼接地址进入图片页面
+    #         downloadurl = 'http://www.pixiv.net/member_illust.php?mode=medium&illust_' + pid[i]
+    #         print
+    #         downloadurl
+    #         # print
+    #         r = session.get(downloadurl, headers=headers)
+    #         # 暂停3+s
+    #         time.sleep(3 + random.randint(3, 7))
+    #         # 判断是否为动图（特征为源码中是否存在ugokuIllustFullscreenData）
+    #         gif_pattern = 'pixiv.context.ugokuIllustFullscreenData  = {"src":"(.*?zip)"'
+    #         gif = re.findall(gif_pattern, r.text, re.S)
+    #         if len(gif):
+    #             # 删除转义字符'\'
+    #             gif[0] = gif[0].replace('\\', '')
+    #             print
+    #             u'这是动图，下载zip'
+    #             filename = pid[i] + '.zip'
+    #             # 下载文件
+    #             g = session.get(gif[0], headers=headers, stream=True)
+    #             if g.status_code == 200:
+    #                 with open(filename, 'wb')as dlg:
+    #                     for chunk in g:
+    #                         dlg.write(chunk)
+    #
+    #             images = []
+    #             # 新建文件夹来保存解压出来的每帧图片
+    #             if os.path.exists(pid[i]) == None:
+    #                 os.mkdir(pid[i])
+    #             fz = zipfile.ZipFile(filename, 'r')
+    #             for file in fz.namelist():
+    #                 images.append(file)
+    #                 fz.extract(file, pid[i] + '/')
+    #             os.chdir(pid[i])
+    #             gifname = pid[i] + '.gif'
+    #             # 合成gif
+    #             TestGif.images2gif(images, gifname, durations=0.05)
+    #             if os.path.exists(os.path.abspath('..') + '\\' + gifname):
+    #                 os.chdir(os.path.abspath('..'))
+    #                 os.remove(gifname)
+    #                 os.chdir(pid[i])
+    #                 # 将gif移动到上级目录
+    #                 shutil.move(pid[i] + '.gif', os.path.abspath('..'))
+    #             else:
+    #                 shutil.move(pid[i] + '.gif', os.path.abspath('..'))
+    #             # 返回上级目录
+    #             os.chdir(os.path.abspath('..'))
+    #             '''发现Image.open()这个方法打开的文件在关闭时存在一些问题，有时候文件列表还没关闭完就执行删除操作了，干脆暴力让它停几秒'''
+    #             time.sleep(10)
+    #             # 删除那文件夹
+    #             shutil.rmtree(pid[i])
+    #
+    #         else:
+    #             o_pattern = r'data-src="(http://i\d\.pixiv\.net/img-original.*?)" class="original-image"'
+    #             temp = re.findall(o_pattern, r.text, re.S)
+    #             if len(temp):
+    #                 print
+    #                 u'这是单图'
+    #                 print
+    #                 temp
+    #                 k = session.get(temp[0], headers=headers, stream=True)
+    #                 if k.status_code == 200:
+    #                     with open(pid[i] + '.jpg', 'wb')as dl:
+    #                         for chunk in k:
+    #                             dl.write(chunk)
+    #             else:
+    #                 print
+    #                 u'这是多图'
+    #                 tempurl = 'http://www.pixiv.net/member_illust.php?mode=manga&illust_' + pid[i]
+    #                 print
+    #                 tempurl
+    #                 k = session.get(tempurl, headers=headers)
+    #                 m_pattern = 'data-src="(http://i\d\.pixiv\.net/c/1200x1200/img-master/img.*?)"'
+    #                 temp = re.findall(m_pattern, k.text, re.S)
+    #                 # print temp
+    #                 no = 1
+    #                 for w in temp:
+    #                     print
+    #                     w
+    #                     j = session.get(w, headers=headers, stream=True)
+    #                     if j.status_code == 200:
+    #                         with open(pid[i] + '_' + str(no) + '.jpg', 'wb')as dlm:
+    #                             for chunk in j:
+    #                                 dlm.write(chunk)
+    #                     no += 1
+    #
+    # # 具体要哪天的日榜（R-18，并且默认是男性向）
+    # def getwhichdayr18(date):
+    #
+    #     dailyurl = 'http://www.pixiv.net/ranking.php?mode=male_r18&date=' + date
+    #     f = session.get(dailyurl, headers=headers)
+    #     # print f.text
+    #     print
+    #     '——————————————————————————————————————————————'
+    #
+    #     # date_r18为文件名
+    #     date = date + '_r18'
+    #     if os.path.exists(date):
+    #         # 切换当前目录
+    #         os.chdir(date)
+    #     else:
+    #         # 创建当前日期的文件夹
+    #         os.mkdir(date)
+    #         os.chdir(date)
+    #
+    #     # 获取id
+    #     for i in range(0, 10):
+    #         pattern = 'member_illust\.php\?mode=medium&amp;illust_(id=\d+)&amp;uarea=male_r18&amp;ref=rn-b-'
+    #         pid = re.findall(pattern, f.text, re.S)
+    #         print
+    #         pid[i]
+    #         # 拼接地址进入图片页面
+    #         downloadurl = 'http://www.pixiv.net/member_illust.php?mode=medium&illust_' + pid[i]
+    #         print
+    #         downloadurl
+    #         # print
+    #         r = session.get(downloadurl, headers=headers)
+    #         # 暂停3+s
+    #         time.sleep(3 + random.randint(3, 7))
+    #         # 判断是否为动图（特征为源码中是否存在ugokuIllustFullscreenData）
+    #         gif_pattern = 'pixiv.context.ugokuIllustFullscreenData  = {"src":"(.*?zip)"'
+    #         gif = re.findall(gif_pattern, r.text, re.S)
+    #         if len(gif):
+    #             # 删除转义字符'\'
+    #             gif[0] = gif[0].replace('\\', '')
+    #             print
+    #             u'这是动图，下载zip'
+    #             filename = pid[i] + '.zip'
+    #             # 下载文件
+    #             g = session.get(gif[0], headers=headers, stream=True)
+    #             if g.status_code == 200:
+    #                 with open(filename, 'wb')as dlg:
+    #                     for chunk in g:
+    #                         dlg.write(chunk)
+    #
+    #             images = []
+    #             # 新建文件夹来保存解压出来的每帧图片
+    #             if os.path.exists(pid[i]) == None:
+    #                 os.mkdir(pid[i])
+    #             fz = zipfile.ZipFile(filename, 'r')
+    #             for file in fz.namelist():
+    #                 images.append(file)
+    #                 fz.extract(file, pid[i] + '/')
+    #             os.chdir(pid[i])
+    #             gifname = pid[i] + '.gif'
+    #             # 合成gif
+    #             TestGif.images2gif(images, gifname, durations=0.05)
+    #             if os.path.exists(os.path.abspath('..') + '\\' + gifname):
+    #                 os.chdir(os.path.abspath('..'))
+    #                 os.remove(gifname)
+    #                 os.chdir(pid[i])
+    #                 # 将gif移动到上级目录
+    #                 shutil.move(pid[i] + '.gif', os.path.abspath('..'))
+    #             else:
+    #                 shutil.move(pid[i] + '.gif', os.path.abspath('..'))
+    #             # 返回上级目录
+    #             os.chdir(os.path.abspath('..'))
+    #             '''同理'''
+    #             time.sleep(10)
+    #             # 删除那文件夹
+    #             shutil.rmtree(pid[i])
+    #
+    #         else:
+    #             o_pattern = r'data-src="(http://i\d\.pixiv\.net/img-original.*?)" class="original-image"'
+    #             temp = re.findall(o_pattern, r.text, re.S)
+    #             if len(temp):
+    #                 print
+    #                 u'这是单图'
+    #                 print
+    #                 temp
+    #                 k = session.get(temp[0], headers=headers, stream=True)
+    #                 if k.status_code == 200:
+    #                     with open(pid[i] + '.jpg', 'wb')as dl:
+    #                         for chunk in k:
+    #                             dl.write(chunk)
+    #             else:
+    #                 print
+    #                 u'这是多图'
+    #                 tempurl = 'http://www.pixiv.net/member_illust.php?mode=manga&illust_' + pid[i]
+    #                 print
+    #                 tempurl
+    #                 k = session.get(tempurl, headers=headers)
+    #                 m_pattern = 'data-src="(http://i\d\.pixiv\.net/c/1200x1200/img-master/img.*?)"'
+    #                 temp = re.findall(m_pattern, k.text, re.S)
+    #                 # print temp
+    #                 no = 1
+    #                 for w in temp:
+    #                     print
+    #                     w
+    #                     j = session.get(w, headers=headers, stream=True)
+    #                     if j.status_code == 200:
+    #                         with open(pid[i] + '_' + str(no) + '.jpg', 'wb')as dlm:
+    #                             for chunk in j:
+    #                                 dlm.write(chunk)
+    #                     no += 1
