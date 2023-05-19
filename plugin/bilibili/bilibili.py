@@ -31,7 +31,7 @@ class bilibili(Plugin):
 
         def bid_format(key, config, groups):
             """
-            :return: {bid1, bid2, ...} {'group_id': [bid1, bid2, ...]}
+            :return: [bid1, bid2, ...] {'group_id': [bid1, bid2, ...]}
             """
             # 待监听的所有bid
             bid_set = set()
