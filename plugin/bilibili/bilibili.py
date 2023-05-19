@@ -25,21 +25,46 @@ class bilibili(Plugin):
 
         self._lives_old = []
         self._live_monitor_in = True
-        self._monitor_live_uids = plugin_config["monitorLive"] if "monitorLive" in plugin_config else []
         self._dynamic_list_old = {}
         self._dynamic_monitor_in = True
-        self._monitor_dynamic_uids = plugin_config["monitorDynamic"] if "monitorDynamic" in plugin_config else []
         self._send_msg_list = []
 
+        def bid_format(key, config, groups):
+            """
+            :return: {bid1, bid2, ...} {'group_id': [bid1, bid2, ...]}
+            """
+            # 待监听的所有bid
+            bid_set = set()
+            # 生成监听字典
+            bid_dict = {gid: set() for gid in groups}
+
+            if not bid_dict:
+                return [], []
+
+            for gid, bid_list in config.get(key, {}).items():
+                bid_set.update(bid_list)
+
+                if gid == 'public':
+                    for bid in bid_dict.values():
+                        bid.update(bid_list)
+                else:
+                    bid_dict.get(gid, set()).update(bid_list)
+
+            return list(bid_set), bid_dict
+
+        # 直播间
+        self._live_bids, self._live_bids_sender = bid_format('monitorLive', plugin_config, bot.group_id_list)
+        # 用户
+        self._dynamic_bids, self._dynamic_bids_sender = bid_format('monitorDynamic', plugin_config, bot.group_id_list)
+
         # 初始化 self._dynamic_list_old
-        if self._monitor_dynamic_uids != []:
-            for uid in self._monitor_dynamic_uids:
-                self._dynamic_list_old[uid] = {
-                    "time": 0,
-                    "data": {}
-                }
-        
-        if self._monitor_live_uids == [] and self._monitor_dynamic_uids == []:
+        for uid in self._dynamic_bids:
+            self._dynamic_list_old[uid] = {
+                "time": 0,
+                "data": {}
+            }
+
+        if not any((self._live_bids, self._dynamic_bids)):
             return
 
         self.monitor()
@@ -496,7 +521,7 @@ class bilibili(Plugin):
         """
         异步直播开播监听处理
         """
-        live_list = await self.get_lives_status(self._monitor_live_uids)
+        live_list = await self.get_lives_status(self._live_bids)
         if not live_list:
             return
 
@@ -505,7 +530,7 @@ class bilibili(Plugin):
                 if live_id in self._lives_old:
                     self._lives_old.remove(live_id)
                     live_end_message = self.set_live_end_message(live_list["data"][live_id])
-                    self._send_msg_list.append(live_end_message)
+                    self._send_msg_list.append((live_id, live_end_message, 'live'))
                     logging.debug("监听到了下播 %s" % live_end_message)
 
                 continue
@@ -514,7 +539,7 @@ class bilibili(Plugin):
                 continue
             
             live_message = self.set_live_message(live_list["data"][live_id])
-            self._send_msg_list.append(live_message)
+            self._send_msg_list.append((live_id, live_message, 'live'))
             self._lives_old.append(live_id)
             logging.debug("监听到了开播 %s" % live_message)
     
@@ -531,7 +556,7 @@ class bilibili(Plugin):
         异步动态监听处理
         """
         dynamic_list = {}
-        for uid in self._monitor_dynamic_uids:
+        for uid in self._dynamic_bids:
             dynamic_data = await self.get_dynamic(uid)
             if not dynamic_data:
                 return
@@ -559,14 +584,14 @@ class bilibili(Plugin):
                 dynamic = self.set_dynamic_delete_message(await self._dynamic_check(
                     self._dynamic_list_old[uid]["data"])
                 )
-                self._send_msg_list.append(dynamic)
+                self._send_msg_list.append((uid, dynamic, 'dynamic'))
                 logging.debug("监听到了动态删除 %s" % dynamic)
                 continue
             
             dynamic = await self._dynamic_check(
                     dynamic_list[uid]["data"]
                 )
-            self._send_msg_list.append(dynamic)
+            self._send_msg_list.append((uid, dynamic, 'dynamic'))
             logging.debug("监听到了新的动态 %s" % dynamic)
 
         self._dynamic_list_old = dynamic_list
@@ -576,16 +601,16 @@ class bilibili(Plugin):
         异步监听
         """
         try:
-            if self._monitor_live_uids != []:
+            if self._live_bids:
                 await self._monitor_live()
                 self._live_monitor_in = False
             else:
                 self._live_monitor_in = False
         except Exception as err:
             self.monitorLiveError(err)
-        
+
         try:
-            if self._monitor_dynamic_uids != []:
+            if self._dynamic_bids:
                 await self._monitor_dynamic()
                 self._dynamic_monitor_in = False
             else:
@@ -608,8 +633,14 @@ class bilibili(Plugin):
         """
         发送监听到的信息
         """
-        for message in self._send_msg_list:
-            self.cqapi.send_group_msg(group_id, message)
+        bid_dict = {
+            'live': self._live_bids_sender.get(group_id),
+            'dynamic': self._dynamic_bids_sender.get(group_id),
+        }
+
+        for bid, message, msg_type in self._send_msg_list:
+            if int(bid) in bid_dict.get(msg_type, []):
+                self.cqapi.send_group_msg(group_id, message)
     
     def monitor_send_clear(self):
         """
