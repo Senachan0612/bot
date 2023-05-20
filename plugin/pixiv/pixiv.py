@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import datetime
+import asyncio
 from io import BytesIO
 from lxml import etree
 from pycqBot.cqHttpApi import cqBot, cqHttpApi
@@ -171,7 +172,7 @@ class pixiv(Plugin):
         if message is None:
             return message_list
         # 发送图片
-        await self._send_image_list(message_list=message_list, group_ids=message.sender.group_id)
+        await self._send_image_list(message_list=message_list, group_ids=[message.sender.group_id])
 
     async def _send_image_list(self, message_list, group_ids=None, lottery=True):
         """
@@ -521,15 +522,24 @@ class pixiv(Plugin):
         """
         logging.error("请求 pixiv api发生错误! Error: %s " % err_msg)
 
-    async def file_download(self, index, image_info, path=DOWNLOAD_PATH, reload=False, cache_file=None):
+    async def file_download(self, index, image_info, root_path=DOWNLOAD_PATH, reload=False, cache_file=None):
         """
         image_info=[pid, http-url]
         """
-        if not os.path.isdir(path):
-            os.makedirs(path)
+        p_id = image_info[0]
+        p_page = index
+        p_url = image_info[1]
 
-        file_name = '%s-%s.%s' % (image_info[0], index, SHOW_IMG_TYPE)
-        file_path = r'%s/%s' % (path, file_name)
+        # 创建download文件夹
+        if not os.path.isdir(root_path):
+            os.makedirs(root_path)
+        # 创建pid文件夹
+        org_path = r'%s/%s' % (root_path, p_id)
+        if not os.path.isdir(org_path):
+            os.makedirs(org_path)
+
+        file_name = '%s-%s.%s' % (p_id, p_page, SHOW_IMG_TYPE)
+        file_path = r'%s/%s' % (org_path, file_name)
 
         if reload or not os.path.isfile(file_path):
             byte_file = None
@@ -540,15 +550,25 @@ class pixiv(Plugin):
                     byte_file = f.read()
 
             if not byte_file:
-                # 使用link下载
-                byte_file = await self.cqapi.link(url=image_info[1], mod='get', headers=self._headers_dict,
-                                                  proxy=self._proxy, json=False, byte=True)
+                # 使用link下载 失败重连三次 间隔1s
+                for i in range(3):
+                    try:
+                        byte_file = await self.cqapi.link(url=p_url, mod='get', headers=self._headers_dict,
+                                                          proxy=self._proxy, json=False, byte=True)
+                    except Exception:
+                        await asyncio.sleep(1)
+                    break
 
+            if not byte_file:
+                return None
             try:
                 with open(file_path, 'wb') as f:
                     # 转换为Pillow Image对象
                     Image.open(BytesIO(byte_file)).save(f, SAVE_IMG_TYPE)
             except Exception as e:
+                # 下载失败需要删除文件
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
                 return None
 
         return file_path
@@ -591,8 +611,8 @@ class pixiv(Plugin):
 
         # 正常
         self.cqapi.add_task(self._push_daily_list('daily', target_data, group_ids))
-        # R18
-        self.cqapi.add_task(self._push_daily_list('daily_r18', target_data, group_ids))
+        # # R18 todo 功能暂时封印
+        # self.cqapi.add_task(self._push_daily_list('daily_r18', target_data, group_ids))
 
     async def _push_daily_list(self, _mode, _date, _group_ids):
         _url = 'https://www.pixiv.net/ranking.php?mode=%s&content=illust&date=%s' % (_mode, _date)
@@ -604,7 +624,7 @@ class pixiv(Plugin):
 
         img_dict = {}
         for item in re_href.finditer(html_text):
-            if len(img_dict) > 10:
+            if len(img_dict) >= 10:
                 # 只取榜十
                 break
 
@@ -619,4 +639,4 @@ class pixiv(Plugin):
             img_list = [(pid, img["urls"]["original"]) for img in img_data]
             img_dict[pid] = await self._get_image_list(img_list, message=None, send_type=3)
 
-        await self._send_image_list(img_dict, group_ids=_group_ids, lottery=True)
+        await self._send_image_list(img_dict, group_ids=_group_ids, lottery=False)

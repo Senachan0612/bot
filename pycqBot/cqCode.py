@@ -152,9 +152,14 @@ def node_list(message_list: list[str] or iter, name: str, uin: int) -> str:
     合并转发列表生成
     """
     node_list_data = []
-    for message in message_list:
-        node_list_data.append(node(content=message, name=name, uin=uin))
-    
+
+    if isinstance(message_list, dict):
+        for tags, lists in message_list.items():
+            for message in lists:
+                node_list_data.append(node(content=message, name=name, uin=uin))
+    else:
+        for message in message_list:
+            node_list_data.append(node(content=message, name=name, uin=uin))
     return json_data.dumps(node_list_data, separators=(',', ':'), ensure_ascii=False)
 
 
