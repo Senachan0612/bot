@@ -609,21 +609,25 @@ class cqBot(cqEvent.Event):
     def _timing_job(self, job: dict[str, Any]) -> None:
         run_count = 0
         while True:
-            self._run_event("timing_jobs_start", job, run_count)
-            for group_id in self.group_id_list:
-                if group_id in job["ban"]:
-                    return
+            try:
+                self._run_event("timing_jobs_start", job, run_count)
+                for group_id in self.group_id_list:
+                    if group_id in job["ban"]:
+                        return
 
-                run_count += 1
-                try:
-                    job["function"](group_id)
-                    self._run_event("timing_job_end", job, run_count, group_id)
+                    run_count += 1
+                    try:
+                        job["function"](group_id)
+                        self._run_event("timing_job_end", job, run_count, group_id)
 
-                except Exception as err:
-                    self.runTimingError(job, run_count, err, group_id)
-                    self._run_event("runTimingError", job, run_count, err, group_id)
+                    except Exception as err:
+                        self.runTimingError(job, run_count, err, group_id)
+                        self._run_event("runTimingError", job, run_count, err, group_id)
 
-            self._run_event("timing_jobs_end", job, run_count)
+                self._run_event("timing_jobs_end", job, run_count)
+            except Exception as err:
+                print(err)
+                continue
             time.sleep(job["timeSleep"])
 
     def timing(self, function: Callable[[int], None], timing_name: str, options: Optional[dict[str, Any]] = None) -> "cqBot":
