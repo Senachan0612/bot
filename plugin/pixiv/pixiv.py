@@ -602,20 +602,23 @@ class pixiv(Plugin):
         else:
             group_ids = self.bot.group_id_list
 
-        if not target_data:
+        _data = ''
+        if target_data:
             # 获取当前日期
             current_date = datetime.date.today()
             # 计算昨天的日期
-            yesterday = current_date - datetime.timedelta(days=1)
-            target_data = yesterday.strftime('%Y%m%d')
+            yesterday = (current_date - datetime.timedelta(days=1)).strftime('%Y%m%d')
+
+            if target_data > yesterday:
+                _date = '&date=%s' % target_data
 
         # 正常
-        self.cqapi.add_task(self._push_daily_list('daily', target_data, group_ids))
+        self.cqapi.add_task(self._push_daily_list('daily', _data, group_ids))
         # # R18 todo 功能暂时封印
         # self.cqapi.add_task(self._push_daily_list('daily_r18', target_data, group_ids))
 
     async def _push_daily_list(self, _mode, _date, _group_ids):
-        _url = 'https://www.pixiv.net/ranking.php?mode=%s&content=illust&date=%s' % (_mode, _date)
+        _url = 'https://www.pixiv.net/ranking.php?mode=%s&content=illust%s' % (_mode, _date)
 
         html_text = await self.cqapi.link(_url, json=False, proxy=self._proxy, headers=self._pyheaders)
 
