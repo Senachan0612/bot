@@ -222,6 +222,52 @@ class cqBot(cqEvent.Event):
         # go_cqhttp 状态 通过心跳更新
         self._go_cqhttp_status: dict = {}
 
+        class MsgContext:
+            def __init__(self, max_len, *args, **kwargs):
+                super(MsgContext, self).__init__(*args, **kwargs)
+                self.__dict = {}
+                self.__monitor = {}
+                self.__max_len = max_len
+
+            def add(self, message: Group_Message):
+                _msg = message._message_data
+                self.update(_msg['group_id'], _msg['user_id'], _msg['time'], _msg['message'])
+
+            def update(self, gid, uid, dt, msg):
+                if gid not in self.__monitor:
+                    return
+                _group = self.__dict.get(gid, [])
+                _split = (len(_group) - self.__max_len + 1) if len(_group) >= self.__max_len else 0
+                self.__dict[gid] = _group[_split:] + [(uid, dt, msg)]
+
+            def __repr__(self):
+                return self.__dict
+
+            def monitor(self, gid, seq):
+                _seq_set = self.__monitor.setdefault(gid, set())
+                if seq in _seq_set:
+                    return '进程已存在！'
+
+                _seq_set.add(seq)
+
+            def un_monitor(self, gid, seq):
+                _seq_set = self.__monitor.get(gid, set()) - {seq}
+                if not _seq_set:
+                    self.__monitor.pop(gid, None)
+
+            def get(self, gid, dt):
+                """取比指定时间晚的记录"""
+                _context = self.__dict.get(gid, [])
+                return ((str(_uid), _dt, _msg) for _uid, _dt, _msg in _context if _dt > dt)
+
+            def last(self, gid):
+                """取最后一条记录"""
+                _context = self.__dict.get(gid, [])
+                return _context[-1] if _context else ('', 0, '')
+
+        # 群消息上下文存储 存储近二十条消息
+        self.group_msg_context = MsgContext(max_len=20)
+
         # 以下参数只有在启用时设置有效
         # websocket 会话 地址
         self.__host = host
@@ -909,6 +955,7 @@ class cqBot(cqEvent.Event):
         """
         群消息
         """
+        self.group_msg_context.add(message)
         self._message_group(message)
 
     def notCommandError(self, message: Message):
