@@ -3,7 +3,7 @@ import logging
 import time
 import datetime
 import os
-import re
+import requests
 import io
 import random
 import copy
@@ -19,6 +19,8 @@ from plugin.games import _gobang
 JOIN_TAG = '参战'
 # 日志路径
 DOWNLOAD_PATH = r'../info/download/games'
+# 背景图片大小
+IMAGE_SIZE = 500
 
 
 class games(Plugin):
@@ -62,7 +64,10 @@ class games(Plugin):
 
             return _l
 
-        self.canvas = _format_canvas(plugin_config.get('canvas', []), plugin_config.get('size', 500))
+        self.canvas = _format_canvas(plugin_config.get('canvas', []), IMAGE_SIZE)
+
+        # 消息监听时间(s)
+        self.sleep_time = 2
 
         bot.command(self.play_game, 'G', {
             'help': [
@@ -94,18 +99,29 @@ class games(Plugin):
         return tuple(res_list)
 
     def play_game(self, commandData, message: Message):
-        game_command, *args = self.get_command(commandData + [' '], [1])
+        commandData = [_msg for _msg in commandData if _msg]
 
-        self.game_create(game_command, message)
+        _name = ''
+        # 是否替换背景图片
+        is_canvas = False
+        if len(commandData):
+            _name = commandData[0]
+            if len(commandData) > 1:
+                is_canvas = True
 
-    def game_create(self, game_name, message: Message):
+        self.game_create(_name, message, is_canvas)
+
+    def game_create(self, game_name, message: Message, is_canvas):
         name, func = game_name, self.game_dict.get(game_name)
 
         if not func:
             return message.reply('小游戏"%s"不存在！' % name)
 
+        # 获取背景壁纸
+        canvas = self.select_canvas(is_canvas, name, message)
+
         # 创建线程启动小游戏
-        thread = Thread(target=func, args=(self, message), name=name)
+        thread = Thread(target=func, args=(self, message, canvas), name=name)
         thread.setDaemon(True)
         thread.start()
 
@@ -143,7 +159,7 @@ class games(Plugin):
             context = self.bot.group_msg_context.get(gid, dt)
             _dt = dt
             # # todo
-            # context = [('1483059120', _dt, '参战')]
+            # context = [('1074545686', _dt, '参战')]
             for _uid, _dt, _msg in context:
                 _uname = group_users[_uid]
                 _player = (_uid, _uname)
@@ -162,12 +178,53 @@ class games(Plugin):
 
             if len(player_ids) >= matching_nums:
                 break
-            time.sleep(1)
+            time.sleep(self.sleep_time)
         return (host_id, host_name), player_ids, dt
 
-    def select_canvas(self):
+    def select_canvas(self, is_custom=False, name='', message=None):
         """挑选画布"""
-        return copy.copy(self.canvas[int(len(self.canvas) * random.random() // 1)])
+        if is_custom and name and isinstance(message, Message):
+            gid = message.sender.group_id
+            dt = message._message_data['time']
+            user = str(message.sender.id)
+
+            self.send_group_msg(gid, '请发送一张图片作为默认壁纸！')
+            # 监听群消息
+            self.bot.group_msg_context.monitor(gid, name)
+
+            _canvas = None
+            while True:
+                context = self.bot.group_msg_context.get(gid, dt)
+                _dt = dt
+                for _uid, _dt, _msg in context:
+                    if _uid == user:
+                        # 获取文件url
+                        url = _msg.split('url=')[-1].split(']')[0]
+                        if url:
+                            try:
+                                byte_file = requests.get(url).content
+                                _img = Image.open(io.BytesIO(byte_file))
+                                # 调整图像大小
+                                _img = _img.resize((IMAGE_SIZE, IMAGE_SIZE))
+                                # 创建一个内存文件对象
+                                _temp_file = io.BytesIO()
+                                # 将图像以指定格式保存到内存文件对象中
+                                _img.save(_temp_file, format='jpeg')
+                                # 将内存文件对象的内容作为新的Image对象打开
+                                _canvas = Image.open(_temp_file)
+                            except Exception:
+                                _canvas = copy.copy(self.canvas[int(len(self.canvas) * random.random() // 1)])
+                                self.send_group_msg(gid, '未知错误，将使用默认壁纸！')
+                        break
+                dt = _dt
+
+                if _canvas:
+                    break
+                time.sleep(self.sleep_time)
+        else:
+            _canvas = copy.copy(self.canvas[int(len(self.canvas) * random.random() // 1)])
+
+        return _canvas
 
     def start_manifesto(self, _gid, _name, timestamp, host, player, back_msg='', path=DOWNLOAD_PATH):
         """开始宣言"""
@@ -189,16 +246,10 @@ class games(Plugin):
                 break
             season += 1
 
-        self.send_group_msg(_gid,
-                            'Ladies and gentlemen!\n'
-                            '   服务器时间%s，我们将目睹游戏界的巅峰对决！在这个赛场上，只有勇者才能脱颖而出，只有最强者才能夺取胜利的荣耀！\n'
-                            '下面介绍一下本场对决的参赛选手：\n'
-                            '   首先是对决的发起者%s选手！\n'
-                            '   接下来是接受了这场对决的%s！\n'
-                            '   现在，让我们为他们打开狂热的掌声，为他们点燃战火，共同迎接这场决斗界的盛宴\n'
-                            '   第%s届%s对决现在开始！'
-                            '%s'
-                            % (format_time, host_name, player_name, season, _name, back_msg))
+        self.send_group_msg(_gid, '服务器时间[%s]\n'
+                                  '第%s届%s对决现在开始！'
+                                  '%s'
+                            % (format_time, season, _name, back_msg))
 
         return season, file_path
 

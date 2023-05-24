@@ -1,14 +1,7 @@
-from threading import Thread
-import logging
 import time
-import datetime
-import os
 import re
-import io
 import random
-import asyncio
 import copy
-import base64
 import sys
 from PIL import Image, ImageDraw, ImageFont
 
@@ -32,24 +25,30 @@ VERTICAL_MAPPING = {_k: _i for _i, _k in enumerate(VERTICAL)}
 
 class GoBang:
 
-    def __init__(self, game: games, message: Message):
+    def __init__(self, game: games, message: Message, canvas: Image or None = None):
         self.game = game
         self.message = message
         self.bot = game.bot
+
+        self.gid = message.sender.group_id
         self.name = '五子棋'
         # 人数
         self.nums = 2
-        # 玩家
+        # 玩家信息
         self.player_dict = {}
-        self.gid = message.sender.group_id
+        # 轮序表
+        self.active_list = []
+
         # 棋盘
-        self.canvas = game.select_canvas()
+        self.canvas = canvas if canvas else game.select_canvas()
         # 画图对象
         self.draw = ImageDraw.Draw(self.canvas)
         # 棋盘大小 15 * 15
         self.size = 15
+        # 明细表
+        self.detailed_dict = {0: [[None for _ in range(15)] for _ in range(15)]}
         # 明细
-        self.detailed = [[None for _ in range(15)] for _ in range(15)]
+        self.detailed = self.detailed_dict[0]
 
         # 日志路径
         self.path = ''
@@ -61,27 +60,29 @@ class GoBang:
         self.game.group_msg_context(self.gid, self.name)
 
         # 匹配玩家
-        res = self.game.matching_players(self.message, self.name, self.nums)
-        if res is None:
-            return res
-        host, (player,), timestamp = res
+        players_info = self.game.matching_players(self.message, self.name, self.nums)
+        if players_info is None:
+            return None
+        host, (player,), timestamp = players_info
 
+        # 玩家信息
         self.player_dict = dict((host, player))
+        self.active_list = list(self.player_dict.keys())
 
         # 开始游戏
         self.start(host, player, timestamp)
 
         # 结束游戏 发送gif记录
-        self.send_details()
+        self.send_details(before_msg='>>>本局精彩回顾<<<')
 
     def start(self, _host, _player, _dt):
         """开始游戏"""
-        # 轮序表
-        active_list = list(self.player_dict.keys())
+        # 轮序表 随机顺序
+        random.shuffle(self.active_list)
 
         # 开局宣言
-        back_msg = '\n先手(黑)："%s"选手，后手(白)："%s"选手' % (self.player_dict.get(active_list[1]),
-                                                    self.player_dict.get(active_list[0]))
+        back_msg = '\n先手(黑)："%s"选手！ \n后手(白->其实是红)："%s"选手！' \
+                   % (self.player_dict[self.active_list[-1]], self.player_dict[self.active_list[0]])
         # 届, 日志路径
         season, self.path = self.game.start_manifesto(self.gid, self.name, _dt, _host, [_player], back_msg)
 
@@ -89,7 +90,7 @@ class GoBang:
         self.prepare_canvas(season)
 
         # 开始游戏
-        winner = self._start(active_list)
+        winner = self._start()
 
         if winner is None:
             end_msg = '天尊之间的大战，直到到最后也没有分出胜负，对局结束！'
@@ -98,7 +99,7 @@ class GoBang:
         # 结束宣言
         self.game.send_group_msg(self.gid, end_msg)
 
-    def _start(self, _active):
+    def _start(self):
         # 设置开始时间
         _, dt, _ = self.bot.group_msg_context.last(self.gid)
         # 轮次
@@ -108,38 +109,41 @@ class GoBang:
 
         while True:
             context = self.bot.group_msg_context.get(self.gid, dt)
+            # todo
+            # context = [('1074545686', dt + 10, 'A1')]
             for user, dt, msg in context:
                 # 后手0 先手1
-                if msg in ['认输', '投降'] and user in _active:
-                    return list(set(_active) - {user})[0]
-
                 _who = _turn % self.nums
-                if user != _active[_who]:
+
+                if user not in self.active_list:
                     continue
 
                 # 校验指令
-                _command = self.command_format(msg, _who)
-                if not _command:
+                _command = self.command_format(user, msg, _who, _turn)
+
+                if _command is None:
+                    continue
+                elif isinstance(_command, str):
+                    return self.active_list and self.active_list[0] or None
+
+                # 执行指令
+                _new_turn = self.command_exec(_command, _who, _turn)
+
+                if _new_turn is None:
                     continue
 
-                # 绘制指令
-                self.command_draw(_command, _who, _turn)
+                if _new_turn == _turn and isinstance(_command, tuple):
+                    # 检测对局
+                    winner = self.check_detailed(_command, _who)
+                    if winner is not None:
+                        return winner
 
-                # 发送棋谱
-                self.send_image(_turn)
-
-                # 检测对局
-                winner = self.check_detailed(_command, _who)
-                if winner is not None:
-                    return _active[winner]
-
-                _turn += 1
-
+                _turn = _new_turn + 1
                 # 超出轮次 平局
                 if _turn > 15 * 15:
                     return None
 
-            time.sleep(1)
+            time.sleep(self.game.sleep_time)
 
     def prepare_canvas(self, _season):
         """准备棋盘"""
@@ -189,16 +193,16 @@ class GoBang:
         _x, _y = _command
 
         # 以_x, _y为中心，半径为4的正方形
-        __x_start, __x_end = _x - 4, _x + 4 + 1
-        __y_start, __y_end = _y - 4, _y + 4 + 1
+        x_start, x_end = _x - 4, _x + 4 + 1
+        y_start, y_end = _y - 4, _y + 4 + 1
         if _x < 4:
-            __x_start = 0
+            x_start = 0
         elif _x > 10:
-            __x_end = _len
+            x_end = _len
         if _y < 4:
-            __y_start = 0
+            y_start = 0
         elif _y > 10:
-            __y_end = _len
+            y_end = _len
 
         if _who != _detailed[_y][_x] or _detailed[_y][_x] is False:
             # 异常
@@ -206,37 +210,71 @@ class GoBang:
 
         def func_xx():
             """检查水平方向"""
-            return _detailed[_y][__x_start:__x_end]
+            return _detailed[_y][x_start:x_end]
 
         def func_yy():
             """检查垂直方向"""
-            return (cells[_x] for cells in _detailed[__y_start:__y_end])
+            return (cells[_x] for cells in _detailed[y_start:y_end])
 
         def func_xy():
             """检查正斜线方向"""
-            return (cells[__x_start + __i] for __i, cells in enumerate(_detailed[__y_start:__y_end]))
+            for __y in range(y_start, y_end):
+                __x = _x - (_y - __y)
+                if __x < 0 or __x > 14:
+                    continue
+                yield _detailed[__y][__x]
 
         def func_yx():
             """检查反斜线方向"""
-            for __y in range(__y_start, __y_end):
-                __x = _y - __y + _x
+            for __y in range(y_start, y_end):
+                __x = _x + (_y - __y)
                 if __x < 0 or __x > 14:
                     continue
                 yield _detailed[__y][__x]
 
         for func in [func_xx, func_yy, func_xy, func_yx]:
-            str_detailed = ''.join('_' if x is False else str(x) for x in func())
+            str_detailed = ''.join('_' if _info is False else str(_info) for _info in func())
             if str(_who) * 5 in str_detailed:
                 return _who
 
         return None
 
-    def command_format(self, _command, _who):
+    def command_format(self, _user, _command, _who, _turn):
         """读取指令"""
-        # 使用正则表达式匹配数字
+
+        def find_user(user_list, user):
+            # 寻找用户下标
+            for _i, _u in enumerate(user_list):
+                if _u == user:
+                    return _i
+
+        # 投降
+        if _command in ['认输', '投降', '我输了', '你赢了', '寄了', '法国军礼']:
+            user_index = find_user(self.active_list, _user)
+            self.active_list.pop(user_index)
+            return '投降'
+
+        # 悔棋
+        if _command in ['悔棋', '撤回', '下错了']:
+            self.game.send_group_msg(self.gid, '要记住，落子无悔哦！')
+
+            new_turn = _turn - self.nums
+            if _user == self.active_list[_who]:
+                new_turn -= 1
+            return new_turn
+
+        # 结束对局
+        if _command in ['结束对局', '不玩了', '掀桌']:
+            self.game.send_group_msg(self.gid, '"%s"把牌桌给扬了！' % self.player_dict[_user])
+            self.active_list = []
+            return '掀桌'
+
+        # 读取坐标指令(仅当前轮次用户)
+        if _user != self.active_list[_who]:
+            return None
+
         numbers = re.findall(r'\d+', _command)
         letters = re.findall(r'[a-zA-Z]+', _command)
-
         if len(numbers) == 1 and len(letters) == 1:
             x, y = letters[0].upper(), numbers[0]
             _x, _y = HORIZONTAL_MAPPING.get(x, None), VERTICAL_MAPPING.get(y, None)
@@ -244,9 +282,45 @@ class GoBang:
             if _x is not None and _y is not None:
                 # 指令计入明细
                 if self.detailed[_y][_x] is None:
-                    self.detailed[_y][_x] = _who
                     return _x, _y
             self.game.send_group_msg(self.gid, '坐标(%s, %s)无法落子！' % (x, y))
+
+        return None
+
+    def command_exec(self, _command, _who, _turn):
+        # 覆盖写入棋谱
+        is_reload = True
+        if isinstance(_command, tuple):
+            # 下棋
+            self.detailed = copy.deepcopy(self.detailed)
+            _y, _x = _command
+            self.detailed[_x][_y] = _who
+
+            # 记录棋谱
+            self.detailed_dict[_turn] = self.detailed
+
+            # 绘制棋谱
+            self.command_draw(_command, _who, _turn)
+            new_turn = _turn
+        elif isinstance(_command, int):
+            # 悔棋 轮次-1轮
+            new_turn = _command
+
+            if _command < 0:
+                self.game.send_group_msg(self.gid, '你当前没有棋可以反悔！')
+                return _turn
+            else:
+                self.detailed = copy.deepcopy(self.detailed_dict[new_turn])
+                self.canvas = Image.open('%s/%s.%s' % (self.path, '{:0>3}'.format(new_turn), IMAGE_TYPE))
+                self.draw = ImageDraw.Draw(self.canvas)
+                is_reload = False
+        else:
+            return _turn
+
+        # 发送棋谱
+        self.send_image(new_turn, is_reload)
+
+        return new_turn
 
     def command_draw(self, _command, _who, _turn):
         """绘制指令"""
@@ -272,7 +346,7 @@ class GoBang:
         _draw.ellipse([(x1, y1), (x2, y2)], fill=_color, outline=_color)
 
         # 写头信息
-        self.draw_msg(site=(_side * 0.5, 0), msg='%s' % _turn, color=_color)
+        # self.draw_msg(site=(_side * 0.5, 0), msg='%s' % _turn, color=_color)
 
     def draw_msg(self, site, msg, color):
         """写入信息"""
@@ -282,19 +356,23 @@ class GoBang:
         _font = ImageFont.truetype('arial.ttf', 20)
         _draw.text(site, msg, font=_font, fill=color)
 
-    def send_details(self):
+    def send_details(self, before_msg='', after_msg=''):
         file_path = self.game.match_details(self.gid, self.name, self.path)
         # 发送文件
-        self.game.send_group_msg(self.gid, image('file:///%s/%s' % (LOCAL_PATH, file_path)))
 
-    def send_image(self, _turn=0):
+        self.game.send_group_msg(self.gid, '%s%s%s' % (before_msg,
+                                                       image('file:///%s/%s' % (LOCAL_PATH, file_path)),
+                                                       after_msg))
+
+    def send_image(self, _turn=0, is_reload=True):
         if not self.path:
             return
         path = '%s/%s.%s' % (self.path, '{:0>3}'.format(_turn), IMAGE_TYPE)
-        file = copy.copy(self.canvas)
 
-        # 永久储存
-        self.game.cqapi.add_task(self.game.download(file, path, IMAGE_TYPE))
+        if is_reload:
+            file = copy.copy(self.canvas)
+            # 永久储存
+            self.game.cqapi.add_task(self.game.download(file, path, IMAGE_TYPE))
 
         # 发送文件
         self.game.send_group_msg(self.gid, image('file:///%s/%s' % (LOCAL_PATH, path)))
