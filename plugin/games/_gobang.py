@@ -22,6 +22,11 @@ HORIZONTAL_MAPPING = {_k: _i for _i, _k in enumerate(HORIZONTAL)}
 # 纵轴映射
 VERTICAL_MAPPING = {_k: _i for _i, _k in enumerate(VERTICAL)}
 
+# 先手颜色 - 黑
+FIRST_COLOR = (0, 0, 0)
+# 后手颜色 - 白
+SECOND_COLOR = (255, 255, 255)
+
 
 class GoBang:
 
@@ -81,7 +86,7 @@ class GoBang:
         random.shuffle(self.active_list)
 
         # 开局宣言
-        back_msg = '\n先手(黑)："%s"选手！ \n后手(白->其实是红)："%s"选手！' \
+        back_msg = '\n先手(黑)："%s"选手！ \n后手(白)："%s"选手！' \
                    % (self.player_dict[self.active_list[-1]], self.player_dict[self.active_list[0]])
         # 届, 日志路径
         season, self.path = self.game.start_manifesto(self.gid, self.name, _dt, _host, [_player], back_msg)
@@ -337,8 +342,8 @@ class GoBang:
 
         # 坐标
         _x, _y = _command[0] + 1, _split + 2 - _command[1] - 1
-        # 颜色 先黑后红
-        _color = (0, 0, 0) if _who else (255, 0, 0)
+        # 颜色 先1后0
+        _color = FIRST_COLOR if _who else SECOND_COLOR
 
         # 落子
         x1, y1 = _x * _margin - _piece, _y * _margin - _piece

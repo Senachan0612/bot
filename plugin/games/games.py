@@ -59,8 +59,8 @@ class games(Plugin):
                 _l.append(_new_img)
 
             if not _l:
-                # 绘制一张默认白色背景
-                _l.append(Image.new('RGB', (_size, _size), (255, 255, 255)))
+                # 绘制一张默认背景
+                _l.append(Image.new('RGB', (_size, _size), (210, 180, 140)))
 
             return _l
 
