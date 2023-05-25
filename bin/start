@@ -24,7 +24,10 @@ if __name__ == '__main__':
     _api = cqHttpApi()
 
     # 创建bot
-    _bot = _api.create_bot(group_id_list=config.get('groups'), options={'_bot_name': config.get('bot_name', 'bot')})
+    _bot = _api.create_bot(group_id_list=config.get('groups'), options={
+        '_bot_name': config.get('bot_name', 'bot'),
+        'admin': config.get('bot_master', [])
+    })
 
     # 加载插件功能
     _bot.plugin_load(config.get('plugins', []))

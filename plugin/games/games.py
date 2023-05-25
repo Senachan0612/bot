@@ -49,15 +49,9 @@ class games(Plugin):
                     _img = Image.open(_path)
                 except Exception:
                     continue
-                # 调整图像大小
-                _img = _img.resize((_size, _size))
-                # 创建一个内存文件对象
-                _temp_file = io.BytesIO()
-                # 将图像以指定格式保存到内存文件对象中
-                _img.save(_temp_file, format='jpeg')
-                # 将内存文件对象的内容作为新的Image对象打开
-                _new_img = Image.open(_temp_file)
-                _l.append(_new_img)
+
+                # 添加处理后的图片
+                _l.append(self.format_canvas(_img))
 
             if not _l:
                 # 绘制一张默认背景
@@ -165,7 +159,7 @@ class games(Plugin):
                 _uname = group_users[_uid]
                 _player = (_uid, _uname)
 
-                if _msg == '取消' and _uid == host_id:
+                if _msg == '取消' and self.check_user_limit(_uid, host_id):
                     self.send_group_msg(gid, '本次对局已取消！')
                     return None
 
@@ -198,21 +192,21 @@ class games(Plugin):
                 context = self.bot.group_msg_context.get(gid, dt)
                 _dt = dt
                 for _uid, _dt, _msg in context:
+                    if _msg == '取消' and self.check_user_limit(_uid, user):
+                        self.send_group_msg(gid, '取消个性化认壁纸，使用默认壁纸！')
+                        return copy.copy(self.canvas[int(len(self.canvas) * random.random() // 1)])
+
                     if _uid == user:
                         # 获取文件url
-                        url = _msg.split('url=')[-1].split(']')[0]
+                        url = _msg.split('url=')
+                        if len(url) < 2:
+                            continue
+                        url = url[-1].split(']')[0]
                         if url:
                             try:
                                 byte_file = requests.get(url).content
                                 _img = Image.open(io.BytesIO(byte_file))
-                                # 调整图像大小
-                                _img = _img.resize((IMAGE_SIZE, IMAGE_SIZE))
-                                # 创建一个内存文件对象
-                                _temp_file = io.BytesIO()
-                                # 将图像以指定格式保存到内存文件对象中
-                                _img.save(_temp_file, format='jpeg')
-                                # 将内存文件对象的内容作为新的Image对象打开
-                                _canvas = Image.open(_temp_file)
+                                _canvas = self.format_canvas(_img)
                             except Exception:
                                 _canvas = copy.copy(self.canvas[int(len(self.canvas) * random.random() // 1)])
                                 self.send_group_msg(gid, '未知错误，将使用默认壁纸！')
@@ -272,6 +266,42 @@ class games(Plugin):
 
         # 永久储存
         return file_name
+
+    def check_user_limit(self, check_uid, uid_list):
+        """检测用户是否用有权限"""
+        if isinstance(uid_list, (int, str)):
+            uid_list = [uid_list]
+
+        _uid_list = [int(_u) for _u in uid_list] + self.bot.admin
+        return int(check_uid) in _uid_list
+
+    @staticmethod
+    def format_canvas(image: Image, size=IMAGE_SIZE):
+        width, height = image.size
+        # 取长宽最小的边
+        small_size = min(width, height) or 1
+        # 计算和size的占比
+        rate = size / small_size
+        # 等比例调正图像大小
+        new_width, new_height = int(width * rate), int(height * rate)
+        # 等比例调正图像大小
+        image = image.resize((new_width, new_height))
+
+        # 从中心裁剪为输出大小
+        # 计算裁剪的边界
+        left = (new_width - size) // 2
+        upper = (new_height - size) // 2
+        right = left + size
+        lower = upper + size
+        # 裁剪图像
+        image = image.crop((left, upper, right, lower))
+
+        # 创建一个内存文件对象
+        temp_file = io.BytesIO()
+        # 将图像以指定格式保存到内存文件对象中
+        image.save(temp_file, format='jpeg')
+        # 将内存文件对象的内容作为新的Image对象打开
+        return Image.open(temp_file)
 
     async def download(self, _file, _path, _type):
         """

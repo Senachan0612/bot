@@ -124,6 +124,11 @@ class GoBang:
                 # 后手0 先手1
                 _who = _turn % self.nums
 
+                if msg == '掀桌' and self.game.check_user_limit(user, []):
+                    self.game.send_group_msg(self.gid, '有内鬼，终止交易！"bot的管理员"把牌桌给扬了！')
+                    self.active_list = []
+                    return None
+
                 if user not in self.active_list:
                     continue
 
