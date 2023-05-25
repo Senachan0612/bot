@@ -7,6 +7,7 @@ import requests
 import io
 import random
 import copy
+import csv
 from PIL import Image, ImageDraw, ImageFont
 
 from pycqBot import cqBot, cqHttpApi, Plugin, Message
@@ -277,3 +278,24 @@ class games(Plugin):
             图片文件存储
         """
         _file.save(_path, _type)
+
+    async def game_logs(self, path, msg, user, dt, file):
+        """生成日志文件"""
+        _path = '%s/%s' % (path, 'logs.csv')
+        _row = ('datetime', 'user_id', 'message', 'file_name')
+
+        # 文件路径
+        file_path = '%s/%s' % (path, 'logs.csv')
+        # 写入模式：如果文件存在则追加写入，否则创建新文件并写入
+        mode = 'a' if os.path.exists(file_path) else 'w'
+
+        # 打开 CSV 文件，使用指定的写入模式
+        with open(file_path, mode, encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+
+            # 如果是新文件，则写入表头
+            if mode == 'w':
+                writer.writerow(_row)
+
+            # 写入数据
+            writer.writerow([dt, user, msg, file])

@@ -43,6 +43,8 @@ class GoBang:
         self.player_dict = {}
         # 轮序表
         self.active_list = []
+        # 游戏拥有者
+        self.owner = str(self.message.sender.id)
 
         # 棋盘
         self.canvas = canvas if canvas else game.select_canvas()
@@ -111,6 +113,8 @@ class GoBang:
         _turn = 1
         # 发送棋谱
         self.send_image()
+        # 写入日志
+        self.game_logs('创建游戏', self.owner, dt, 0)
 
         while True:
             context = self.bot.group_msg_context.get(self.gid, dt)
@@ -128,7 +132,11 @@ class GoBang:
 
                 if _command is None:
                     continue
-                elif isinstance(_command, str):
+
+                # 写入日志
+                self.game_logs(_command, user, dt, _turn)
+
+                if isinstance(_command, str):
                     return self.active_list and self.active_list[0] or None
 
                 # 执行指令
@@ -316,7 +324,7 @@ class GoBang:
                 return _turn
             else:
                 self.detailed = copy.deepcopy(self.detailed_dict[new_turn])
-                self.canvas = Image.open('%s/%s.%s' % (self.path, '{:0>3}'.format(new_turn), IMAGE_TYPE))
+                self.canvas = Image.open('%s/%s.%s' % (self.path, self.format_file_name(new_turn), IMAGE_TYPE))
                 self.draw = ImageDraw.Draw(self.canvas)
                 is_reload = False
         else:
@@ -372,7 +380,7 @@ class GoBang:
     def send_image(self, _turn=0, is_reload=True):
         if not self.path:
             return
-        path = '%s/%s.%s' % (self.path, '{:0>3}'.format(_turn), IMAGE_TYPE)
+        path = '%s/%s.%s' % (self.path, self.format_file_name(_turn), IMAGE_TYPE)
 
         if is_reload:
             file = copy.copy(self.canvas)
@@ -381,3 +389,17 @@ class GoBang:
 
         # 发送文件
         self.game.send_group_msg(self.gid, image('file:///%s/%s' % (LOCAL_PATH, path)))
+
+    @staticmethod
+    def format_file_name(_turn):
+        return '' if _turn is None else '{:0>3}'.format(_turn)
+
+    def game_logs(self, _command, _user, _dt, _turn=None):
+        """生成日志信息"""
+        if isinstance(_command, int):
+            _turn = None
+            _command = '撤回'
+
+        file_name = self.format_file_name(_turn)
+
+        self.game.cqapi.add_task(self.game.game_logs(self.path, _command, _user, _dt, file_name))
