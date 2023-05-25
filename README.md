@@ -1,74 +1,121 @@
-# pycqBot
+# QQ Bot
 
-go-cqhttp python 框架，可以用于快速塔建 bot
+FengLiu大佬的pycqBot项目，稍微做了些自用修改  
+[原项目 (移动至 Github Pages): https://github.com/FengLiuFeseliud/pycqBot/](https://github.com/FengLiuFeseliud/pycqBot/)
 
-![issues](https://img.shields.io/github/issues/FengLiuFeseliud/pycqBot)![forks](https://img.shields.io/github/forks/FengLiuFeseliud/pycqBot)![stars](https://img.shields.io/github/stars/FengLiuFeseliud/pycqBot)![license](https://img.shields.io/github/license/FengLiuFeseliud/pycqBot)
+## 项目架构
 
-**项目文档不更新的话 请刷新浏览器缓存**
-
-[项目文档 (移动至 Github Pages): https://fengliufeseliud.github.io/pycqBot/](https://fengliufeseliud.github.io/pycqBot/)
-
-[go-cqhttp](https://github.com/Mrs4s/go-cqhttp)
-
-## 支持 PyPy
-
-可以使用 PyPy3 进行性能提升
-
-```bash
-pypy3 -m pip install pycqBot
-# 改用 PyPy 运行
-pypy3 ./main.py
+```text
+bin
+    start 启动文件
+    start_config.yml 启动配置
+go-cqhttp
+    *
+    config.yml go-cqhttp配置
+    go-cqhttp.exe go-cqhttp执行程序
+plugin
+    *
+    plugin_config.yml 插件配置
+pycqBot
+    *
 ```
 
 ## 演示
 
-### 创建指令
+### 项目搭建流程
 
-```python
-from pycqBot import cqHttpApi, cqBot, cqLog
-from pycqBot.data import *
+1.在bin目录下创建start_config.yml配置文件
 
-cqLog()
+```yml
+# 监听群号
+groups:
+  - 10001  # 群号01
+  - 10002  # 群号02
 
-def test(command_data, message: Message):
-    message.reply("你好!")
- 
-bot = cqHttpApi().create_bot()
-# 创建指令 "#test"
-bot.command(test, "test")
+# 启用的插件
+plugins:
+  - 'plugin.bilibili'
+  - 'plugin.pixiv'
+  - 'plugin.插件名'
 
-bot.start()
+# bot的自我称呼（bot的名字）
+bot_name: 'アトリ'
 ```
 
-### cqCode
+2.在go-cqhttp目录下创建config.yml配置文件  
+参考go-cqhttp帮助中心-[配置信息](https://docs.go-cqhttp.org/guide/config.html#%E9%85%8D%E7%BD%AE%E4%BF%A1%E6%81%AF)
 
-```python
-from pycqBot.cqCode import image, get_cq_code
+3.在plugin目录下创建plugin_config.yml配置文件  
+所有插件的配置放置在同一plugin_config.yml文件中，只需配置**步骤1**中启用的插件即可
 
+&emsp;&emsp;bilibili插件配置
 
-cq_code = image("https://i.pixiv.cat/img-master/img/2020/03/25/00/00/08/80334602_p0_master1200.jpg")
-# 字典 与 cqCode 互转
-print(cq_code, "\n\n", get_cq_code(cq_code))
+```yml
+bilibili:
+  # 直播间推送
+  monitorLive:
+    public: # 全局推送
+      - 123456 # bid123456用户
+    10001: # 10001群推送以下用户
+      - 1234567 # bid1234567用户
+    10002: # 10002群推送以下用户
+      - 12345678 # bid12345678用户
+
+  # 动态推送
+  monitorDynamic:
+    public: # 全局推送
+      - 123456 # bid123456用户
+    10001: # 10001群推送以下用户
+      - 1234567 # bid1234567用户
+    10002: # 10002群推送以下用户
+      - 12345678 # bid12345678用户
+
+  # 监听间隔(s) 每多少秒监听一次
+  timeSleep: 30
 ```
 
-### 事件处理
+&emsp;&emsp;chatgpt插件配置
 
-```python
-from pycqBot import cqHttpApi, cqBot, cqLog
-from pycqBot.data import *
+```yml
+chatgpt:
+  # 请求链接
+  url: 'https://api.openai.com/v1/chat/completions'
+  # 模型
+  model: 'gpt-3.5-turbo'
+  # 密钥
+  key: 'sk-fe...' # 根据自己的情况替换
+  # 代理
+  proxy: '127.0.0.1:1080' # 根据自己的情况替换
+```
 
+&emsp;&emsp;pixiv插件配置
 
-cqLog()
+```yml
+pixiv:
+  # 转发消息使用的 qq 号 (可以使用非登录用户的账号)
+  forward_qq: 10001
+  # 转发使用的名字
+  forward_name: 'アトリ'
+  # pixiv 用户 cookie
+  cookie: '...' # 根据自己的情况替换
+  # 浏览器请求头
+  user_agent: '...' # 根据自己的情况替换
+  # 代理 ip
+  proxy: '127.0.0.1:1080' # 根据自己的情况替换
+  # pid 最多返回多少图片
+  max_pid_len: 20
+  # 其它功能最多返回多少图片
+  max_rlen: 10
+  # 定时清理(秒)
+  timeSleep: false # 感觉用不上 还是设为false吧
+```
 
-class myCqBot(cqBot):
-    
-    # 防撤回
-    def notice_group_recall(self, event: Notice_Event):
-        message = self.cqapi.get_msg(event.data["message_id"])["data"]
-        self.cqapi.send_group_msg(message["group_id"], "有一条消息无了 群友还没看清楚呢！ %s：%s" % ( 
-            message["sender"]["nickname"],
-            message["message"]
-        ))
+&emsp;&emsp;games插件配置
 
-bot = myCqBot(cqHttpApi()).start()
+```yml
+games:
+  list: # 配置需要启用的游戏列表
+    - '五子棋'
+  canvas: # 画布，可以预设至多五个
+    - 'C:\Users\....jpg' # 根据自己的情况替换
 ```
