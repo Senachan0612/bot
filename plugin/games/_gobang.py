@@ -253,7 +253,7 @@ class GoBang:
         for func in [func_xx, func_yy, func_xy, func_yx]:
             str_detailed = ''.join('_' if _info is False else str(_info) for _info in func())
             if str(_who) * 5 in str_detailed:
-                return _who
+                return self.active_list[_who]
 
         return None
 
