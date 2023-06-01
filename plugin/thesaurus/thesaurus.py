@@ -140,6 +140,7 @@ class thesaurus(Plugin):
         self.answers = ANSWERS
         # 阈值
         self.threshold = True
+        self.threshold_count = 0
 
         # 如果存在词库，则启用插件
         if self.outputs:
@@ -207,7 +208,11 @@ class thesaurus(Plugin):
     def trigger_thesaurus(self, message: Group_Message):
         """匹配回复"""
         if self.threshold is False:
-            return
+            if self.threshold_count < 15:
+                self.threshold_count += 1
+                return
+            else:
+                self.threshold_count = 0
 
         self.threshold = False
 
@@ -241,8 +246,9 @@ class thesaurus(Plugin):
         except Exception:
             ...
         finally:
-            time.sleep(1)
+            time.sleep(3)
             self.threshold = True
+            self.threshold_count = 0
 
         # res = ("===>输入问题:%s\n" % inputs +
         #        "匹配问题:%s\n" % self.questions[most_similar_index] +
